@@ -39,6 +39,32 @@ class MultilabelTaskNN(TaskNN):
 
         return logits  # unormalized logit of shape (batch, num_labels)
 
+    def forward_with_representations(
+        self,
+        x: torch.Tensor,
+        buffer: Optional[Dict] = None,
+        **kwargs: Any,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass that also returns per-label representations R_Φ(x).
+
+        R_Φ(x)_i = G_i ⊙ T_F(x), where G_i is the i-th label embedding
+        and T_F(x) is the input feature vector.
+
+        Returns:
+            logits: (batch, num_labels)
+            representations: (batch, num_labels, hidden_dim)
+        """
+        features = self.feature_network(x)  # (batch, hidden_dim)
+        logits = torch.matmul(features, self.label_embeddings.weight.T)  # (batch, num_labels)
+
+        # Per-label representations: element-wise product of features and label embeddings
+        # features: (batch, hidden_dim) -> (batch, 1, hidden_dim)
+        # label_embeddings.weight: (num_labels, hidden_dim) -> (1, num_labels, hidden_dim)
+        representations = features.unsqueeze(1) * self.label_embeddings.weight.unsqueeze(0)
+        # representations: (batch, num_labels, hidden_dim)
+
+        return logits, representations
+
 
 @TaskNN.register("multi-label-text-classification")
 class MultilabelTextTaskNN(MultilabelTaskNN):

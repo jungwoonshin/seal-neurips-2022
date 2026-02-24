@@ -7,3 +7,7 @@ from .inference_net_loss import (
     MultiLabelMarginBasedLoss,
     MultiLabelInferenceLoss,
 )
+from .rsen_loss import (
+    RSENScoreLoss,
+    RSENNCERankingLossWithDiscreteSamples,
+)
