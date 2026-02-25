@@ -12,7 +12,7 @@ try:
 except (ImportError, ModuleNotFoundError) as e:
     wandb_allennlp = False
 
-if wandb_allennlp:
+if wandb_allennlp and "log_best_validation_metrics" not in AllennlpWandbSubCallback.list_available():
 
     @AllennlpWandbSubCallback.register("log_best_validation_metrics")
     class LogBestValidationMetrics(AllennlpWandbSubCallback):
