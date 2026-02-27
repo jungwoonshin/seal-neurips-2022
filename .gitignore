@@ -10,6 +10,11 @@ docs
 coverage.xml
 wandb/
 
+# custom directories
+logs/
+run_*/
+*.jsonnet/
+
 .data/
 data/*
 !data/weizmann_horse_seg/
