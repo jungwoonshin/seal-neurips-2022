@@ -9,6 +9,8 @@ docs
 **.hypothesis
 coverage.xml
 wandb/
+output/
+*.th
 
 .data/
 data/*
