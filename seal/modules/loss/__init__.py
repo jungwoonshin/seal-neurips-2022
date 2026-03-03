@@ -12,6 +12,7 @@ from .multilabel_classification import (
     MultiLabelInferenceLoss,
     MultiLabelMarginBasedLoss,
     MultiLabelDVNScoreLoss,
+    MultiLabelStructuredNCERankingLoss,
 )
 from .inference_net_loss import InferenceLoss, MarginBasedLoss
 from .sequence_tagging import (

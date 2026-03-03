@@ -25,6 +25,7 @@ from seal.modules.oracle_value_function import (
     OracleValueFunction,
 )
 from seal.modules.score_nn import ScoreNN
+from seal.modules.noise_nn import NoiseNN
 from seal.modules.loss import Loss
 from allennlp.data.vocabulary import Vocabulary
 from allennlp.common.lazy import Lazy
@@ -56,6 +57,7 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
         loss_fn: Loss,
         oracle_value_function: Optional[OracleValueFunction] = None,
         score_nn: Optional[ScoreNN] = None,
+        noise_nn: Optional[NoiseNN] = None,
         inference_module: Optional[Sampler] = None,
         evaluation_module: Optional[Sampler] = None,
         num_eval_samples: int = 10,
@@ -90,6 +92,7 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
         self.loss_fn = loss_fn
         self.oracle_value_function = oracle_value_function
         self.score_nn = score_nn
+        self.noise_nn = noise_nn
 
         if inference_module is not None:
             self.inference_module = inference_module
@@ -114,6 +117,12 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
         if self.score_nn is not None:
             for param in self.score_nn.parameters():
                 mode.mark_parameter_with_model_mode(param)
+
+        mode = ModelMode.UPDATE_NOISE_NN
+        if self.noise_nn is not None:
+            for param in self.noise_nn.parameters():
+                mode.mark_parameter_with_model_mode(param)
+
         mode = ModelMode.UPDATE_TASK_NN
 
         if inference_module is not None:
@@ -134,6 +143,7 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
         loss_fn: Lazy[Loss],
         inference_module: Optional[Lazy[Sampler]] = None,
         score_nn: Optional[ScoreNN] = None,
+        noise_nn: Optional[NoiseNN] = None,
         oracle_value_function: Optional[OracleValueFunction] = None,
         evaluation_module: Optional[Lazy[Sampler]] = None,
         regularizer: Optional[RegularizerApplicator] = None,
@@ -141,20 +151,19 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
         **kwargs: Any,
     ) -> "ScoreBasedLearningModel":
 
+        # Build construct kwargs, sharing noise_nn with loss_fn when available
+        loss_construct_kwargs: Dict[str, Any] = {"score_nn": score_nn}
+        sampler_construct_kwargs: Dict[str, Any] = {"score_nn": score_nn}
+
         if oracle_value_function is not None:
-            sampler_ = sampler.construct(
-                score_nn=score_nn, oracle_value_function=oracle_value_function
-            )
-            loss_fn_ = loss_fn.construct(
-                score_nn=score_nn, oracle_value_function=oracle_value_function
-            )
-        else:
-            sampler_ = sampler.construct(
-                score_nn=score_nn,
-            )
-            loss_fn_ = loss_fn.construct(
-                score_nn=score_nn,
-            )
+            loss_construct_kwargs["oracle_value_function"] = oracle_value_function
+            sampler_construct_kwargs["oracle_value_function"] = oracle_value_function
+
+        if noise_nn is not None:
+            loss_construct_kwargs["noise_nn"] = noise_nn
+
+        sampler_ = sampler.construct(**sampler_construct_kwargs)
+        loss_fn_ = loss_fn.construct(**loss_construct_kwargs)
 
         # if no seperate inference module is given,
         # we will be using the same sampler
@@ -183,6 +192,7 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
             loss_fn=loss_fn_,
             oracle_value_function=oracle_value_function,
             score_nn=score_nn,
+            noise_nn=noise_nn,
             inference_module=inference_module_,
             evaluation_module=evaluation_module_,
             regularizer=regularizer,
@@ -216,6 +226,7 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
         task_nn: TaskNN,
         sampler: Optional[Lazy[SamplerContainer]] = None,
         score_nn: Optional[ScoreNN] = None,
+        noise_nn: Optional[NoiseNN] = None,
         oracle_value_function: Optional[OracleValueFunction] = None,
         evaluation_module: Optional[Lazy[Sampler]] = None,
         regularizer: Optional[RegularizerApplicator] = None,
@@ -232,6 +243,13 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
             oracle_value_function=oracle_value_function,
         )
 
+        # Build loss_fn kwargs, sharing noise_nn when available
+        loss_construct_kwargs: Dict[str, Any] = {"score_nn": score_nn}
+        if oracle_value_function is not None:
+            loss_construct_kwargs["oracle_value_function"] = oracle_value_function
+        if noise_nn is not None:
+            loss_construct_kwargs["noise_nn"] = noise_nn
+
         if oracle_value_function is not None:
             if sampler is None:
                 sampler_ = AppendingSamplerContainer(
@@ -245,9 +263,6 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
                     score_nn=score_nn,
                     oracle_value_function=oracle_value_function,
                 )
-            loss_fn_ = loss_fn.construct(
-                score_nn=score_nn, oracle_value_function=oracle_value_function
-            )
         else:
             if sampler is None:
                 sampler_ = AppendingSamplerContainer(
@@ -260,9 +275,7 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
                 sampler_ = sampler.construct(
                     score_nn=score_nn,
                 )
-            loss_fn_ = loss_fn.construct(
-                score_nn=score_nn,
-            )
+        loss_fn_ = loss_fn.construct(**loss_construct_kwargs)
         # add the infnet sampler
         sampler_.append_sampler(infnet_sampler)
 
@@ -289,6 +302,7 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
             loss_fn=loss_fn_,
             oracle_value_function=oracle_value_function,
             score_nn=score_nn,
+            noise_nn=noise_nn,
             inference_module=inference_module_,
             evaluation_module=evaluation_module_,
             regularizer=regularizer,
@@ -347,6 +361,8 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
             results = self.forward_on_tasknn(x, labels, **kwargs)
         elif mode == ModelMode.UPDATE_SCORE_NN:
             results = self.forward_on_scorenn(x, labels, **kwargs)
+        elif mode == ModelMode.UPDATE_NOISE_NN:
+            results = self.forward_on_noisenn(x, labels, **kwargs)
         elif mode == ModelMode.COMPUTE_SCORE:
             score = self.compute_score(x, labels, **kwargs)
             results = {"score": score}
@@ -437,4 +453,24 @@ class ScoreBasedLearningModel(LoggingMixin, Model):
         results["y_hat_extra"] = y_hat_extra
         results["loss"] = loss
 
+        return results
+
+    def forward_on_noisenn(
+        self,
+        x: Any,
+        labels: Optional[torch.Tensor],
+        buffer: Dict,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Train noise network by maximizing log-likelihood of true labels."""
+        results: Dict[str, Any] = {}
+        assert self.noise_nn is not None
+        assert labels is not None
+        labels = self.convert_to_one_hot(labels)
+        # labels shape: (batch, ...) -> (batch, 1, ...)
+        labels_unsqueezed = self.unsqueeze_labels(labels).float()
+        # Compute negative log-likelihood loss
+        log_prob = self.noise_nn.log_prob(x, labels_unsqueezed, buffer)  # (batch, 1)
+        loss = -log_prob.mean()
+        results["loss"] = loss
         return results

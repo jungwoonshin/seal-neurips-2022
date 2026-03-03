@@ -74,3 +74,38 @@ class ScoreNN(torch.nn.Module, Registrable):
                 score = global_score
 
         return score  # (batch, num_samples)
+
+    def compute_local_vector_energy(
+        self, x: Any, y: Any, buffer: Dict, **kwargs: Any
+    ) -> Optional[torch.Tensor]:
+        """Returns per-label local energy of shape (batch, num_samples, L).
+
+        Default returns None. Subclasses should override for natural decompositions.
+        """
+        return None
+
+    def compute_global_vector_energy(
+        self, y: Any, buffer: Dict, **kwargs: Any
+    ) -> Optional[torch.Tensor]:
+        """Delegates to global_score.compute_vector_energy() if available."""
+        if self.global_score is not None:
+            return self.global_score.compute_vector_energy(y, buffer, **kwargs)
+        return None
+
+    def compute_vector_energy(
+        self, x: Any, y: torch.Tensor, buffer: Dict, **kwargs: Any
+    ) -> Optional[torch.Tensor]:
+        """Returns combined per-label energy of shape (batch, num_samples, L).
+
+        Invariant: compute_vector_energy(x, y, buffer).sum(dim=-1) == forward(x, y, buffer)
+        """
+        vec = None
+        local_vec = self.compute_local_vector_energy(x, y, buffer, **kwargs)
+        if local_vec is not None:
+            vec = local_vec
+
+        global_vec = self.compute_global_vector_energy(y, buffer, **kwargs)
+        if global_vec is not None:
+            vec = global_vec if vec is None else vec + global_vec
+
+        return vec

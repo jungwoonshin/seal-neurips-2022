@@ -1,0 +1,110 @@
+Device: cpu
+Config: hidden_dim=256, lr=0.001, batch_size=64, epochs=100, sequential masking over 1836 features
+====================================================================================================
+Loading stratified folds...
+Train: 4407, Val: 1491, Test: 1497
+Model parameters: 1,116,248
+====================================================================================================
+Epoch   1/100 (0.4s) | Train  f2f=0.7072  f2l_m=0.1840  f2l=0.1840  total=1.0752 | Val  f2f=0.5296  f2l_m=0.0849  f2l=0.0849  total=0.6993 | Val  instance_f1=0.1716  *best*
+Epoch   2/100 (0.4s) | Train  f2f=0.7046  f2l_m=0.0653  f2l=0.0652  total=0.8351 | Val  f2f=0.5389  f2l_m=0.0591  f2l=0.0591  total=0.6571 | Val  instance_f1=0.1969  *best*
+Epoch   3/100 (0.4s) | Train  f2f=0.6865  f2l_m=0.0452  f2l=0.0452  total=0.7769 | Val  f2f=0.4986  f2l_m=0.0521  f2l=0.0521  total=0.6029 | Val  instance_f1=0.2568  *best*
+Epoch   4/100 (0.4s) | Train  f2f=0.7097  f2l_m=0.0343  f2l=0.0343  total=0.7783 | Val  f2f=0.5285  f2l_m=0.0498  f2l=0.0498  total=0.6281 | Val  instance_f1=0.2958  *best*
+Epoch   5/100 (0.6s) | Train  f2f=0.7184  f2l_m=0.0294  f2l=0.0294  total=0.7772 | Val  f2f=0.5392  f2l_m=0.0523  f2l=0.0522  total=0.6437 | Val  instance_f1=0.2699
+Epoch   6/100 (0.4s) | Train  f2f=0.7092  f2l_m=0.0221  f2l=0.0221  total=0.7534 | Val  f2f=0.5675  f2l_m=0.0512  f2l=0.0512  total=0.6700 | Val  instance_f1=0.3640  *best*
+Epoch   7/100 (0.4s) | Train  f2f=0.7044  f2l_m=0.0193  f2l=0.0193  total=0.7430 | Val  f2f=0.5543  f2l_m=0.0515  f2l=0.0515  total=0.6573 | Val  instance_f1=0.3240
+Epoch   8/100 (0.4s) | Train  f2f=0.6873  f2l_m=0.0159  f2l=0.0159  total=0.7191 | Val  f2f=0.5475  f2l_m=0.0519  f2l=0.0519  total=0.6514 | Val  instance_f1=0.3430
+Epoch   9/100 (0.4s) | Train  f2f=0.7230  f2l_m=0.0137  f2l=0.0137  total=0.7505 | Val  f2f=0.5924  f2l_m=0.0540  f2l=0.0540  total=0.7003 | Val  instance_f1=0.3869  *best*
+Epoch  10/100 (0.4s) | Train  f2f=0.7254  f2l_m=0.0142  f2l=0.0142  total=0.7538 | Val  f2f=0.6298  f2l_m=0.0538  f2l=0.0538  total=0.7375 | Val  instance_f1=0.3634
+Epoch  11/100 (0.4s) | Train  f2f=0.6859  f2l_m=0.0114  f2l=0.0114  total=0.7087 | Val  f2f=0.6189  f2l_m=0.0525  f2l=0.0525  total=0.7239 | Val  instance_f1=0.3820
+Epoch  12/100 (0.4s) | Train  f2f=0.7054  f2l_m=0.0101  f2l=0.0101  total=0.7256 | Val  f2f=0.6245  f2l_m=0.0687  f2l=0.0687  total=0.7620 | Val  instance_f1=0.3079
+Epoch  13/100 (0.4s) | Train  f2f=0.6727  f2l_m=0.0070  f2l=0.0069  total=0.6866 | Val  f2f=0.6284  f2l_m=0.0643  f2l=0.0643  total=0.7570 | Val  instance_f1=0.3444
+Epoch  14/100 (0.4s) | Train  f2f=0.7367  f2l_m=0.0092  f2l=0.0092  total=0.7550 | Val  f2f=0.6455  f2l_m=0.0533  f2l=0.0533  total=0.7522 | Val  instance_f1=0.3685
+Epoch  15/100 (0.4s) | Train  f2f=0.7097  f2l_m=0.0070  f2l=0.0070  total=0.7236 | Val  f2f=0.6566  f2l_m=0.0560  f2l=0.0560  total=0.7687 | Val  instance_f1=0.3688
+Epoch  16/100 (0.4s) | Train  f2f=0.6788  f2l_m=0.0054  f2l=0.0054  total=0.6896 | Val  f2f=0.6559  f2l_m=0.0604  f2l=0.0604  total=0.7767 | Val  instance_f1=0.3673
+Epoch  17/100 (0.4s) | Train  f2f=0.7181  f2l_m=0.0054  f2l=0.0054  total=0.7288 | Val  f2f=0.6532  f2l_m=0.0591  f2l=0.0592  total=0.7715 | Val  instance_f1=0.3522
+Epoch  18/100 (0.4s) | Train  f2f=0.6953  f2l_m=0.0044  f2l=0.0044  total=0.7041 | Val  f2f=0.6303  f2l_m=0.0655  f2l=0.0655  total=0.7613 | Val  instance_f1=0.3515
+Epoch  19/100 (0.4s) | Train  f2f=0.7075  f2l_m=0.0049  f2l=0.0049  total=0.7172 | Val  f2f=0.6551  f2l_m=0.0573  f2l=0.0573  total=0.7697 | Val  instance_f1=0.3847
+Epoch  20/100 (0.4s) | Train  f2f=0.7101  f2l_m=0.0061  f2l=0.0060  total=0.7222 | Val  f2f=0.6534  f2l_m=0.0595  f2l=0.0595  total=0.7724 | Val  instance_f1=0.3329
+Epoch  21/100 (0.4s) | Train  f2f=0.6960  f2l_m=0.0051  f2l=0.0050  total=0.7061 | Val  f2f=0.6519  f2l_m=0.0711  f2l=0.0711  total=0.7940 | Val  instance_f1=0.3433
+Epoch  22/100 (0.4s) | Train  f2f=0.6840  f2l_m=0.0033  f2l=0.0033  total=0.6907 | Val  f2f=0.6455  f2l_m=0.0681  f2l=0.0681  total=0.7817 | Val  instance_f1=0.3677
+Epoch  23/100 (0.4s) | Train  f2f=0.6964  f2l_m=0.0035  f2l=0.0035  total=0.7033 | Val  f2f=0.6513  f2l_m=0.0599  f2l=0.0599  total=0.7710 | Val  instance_f1=0.3909  *best*
+Epoch  24/100 (0.5s) | Train  f2f=0.6881  f2l_m=0.0033  f2l=0.0032  total=0.6946 | Val  f2f=0.6474  f2l_m=0.0712  f2l=0.0713  total=0.7899 | Val  instance_f1=0.3473
+Epoch  25/100 (0.4s) | Train  f2f=0.7167  f2l_m=0.0050  f2l=0.0050  total=0.7266 | Val  f2f=0.6435  f2l_m=0.0685  f2l=0.0685  total=0.7806 | Val  instance_f1=0.3488
+Epoch  26/100 (0.4s) | Train  f2f=0.7029  f2l_m=0.0028  f2l=0.0028  total=0.7085 | Val  f2f=0.6552  f2l_m=0.0637  f2l=0.0637  total=0.7826 | Val  instance_f1=0.3586
+Epoch  27/100 (0.5s) | Train  f2f=0.6791  f2l_m=0.0029  f2l=0.0029  total=0.6848 | Val  f2f=0.4553  f2l_m=0.0898  f2l=0.0898  total=0.6349 | Val  instance_f1=0.3328
+Epoch  28/100 (0.4s) | Train  f2f=0.5327  f2l_m=0.0079  f2l=0.0079  total=0.5485 | Val  f2f=0.2394  f2l_m=0.1284  f2l=0.1284  total=0.4962 | Val  instance_f1=0.3285
+Epoch  29/100 (0.4s) | Train  f2f=0.3693  f2l_m=0.0081  f2l=0.0080  total=0.3854 | Val  f2f=0.2265  f2l_m=0.0933  f2l=0.0933  total=0.4132 | Val  instance_f1=0.3820
+Epoch  30/100 (0.4s) | Train  f2f=0.3290  f2l_m=0.0062  f2l=0.0062  total=0.3414 | Val  f2f=0.2182  f2l_m=0.1167  f2l=0.1167  total=0.4516 | Val  instance_f1=0.3411
+Epoch  31/100 (0.4s) | Train  f2f=0.2293  f2l_m=0.0037  f2l=0.0037  total=0.2368 | Val  f2f=0.2731  f2l_m=0.1151  f2l=0.1151  total=0.5032 | Val  instance_f1=0.3672
+Epoch  32/100 (0.4s) | Train  f2f=0.2030  f2l_m=0.0029  f2l=0.0028  total=0.2087 | Val  f2f=0.2616  f2l_m=0.1150  f2l=0.1151  total=0.4917 | Val  instance_f1=0.3403
+Epoch  33/100 (0.5s) | Train  f2f=0.1688  f2l_m=0.0024  f2l=0.0024  total=0.1737 | Val  f2f=0.2476  f2l_m=0.0968  f2l=0.0968  total=0.4412 | Val  instance_f1=0.3850
+Epoch  34/100 (0.4s) | Train  f2f=0.1673  f2l_m=0.0022  f2l=0.0022  total=0.1717 | Val  f2f=0.2452  f2l_m=0.0987  f2l=0.0987  total=0.4426 | Val  instance_f1=0.3614
+Epoch  35/100 (0.4s) | Train  f2f=0.2344  f2l_m=0.0032  f2l=0.0032  total=0.2408 | Val  f2f=0.2234  f2l_m=0.0842  f2l=0.0843  total=0.3918 | Val  instance_f1=0.3538
+Epoch  36/100 (0.4s) | Train  f2f=0.1578  f2l_m=0.0026  f2l=0.0025  total=0.1629 | Val  f2f=0.2745  f2l_m=0.1071  f2l=0.1071  total=0.4887 | Val  instance_f1=0.3651
+Epoch  37/100 (0.4s) | Train  f2f=0.1738  f2l_m=0.0021  f2l=0.0020  total=0.1779 | Val  f2f=0.2418  f2l_m=0.0910  f2l=0.0910  total=0.4237 | Val  instance_f1=0.3788
+Epoch  38/100 (0.5s) | Train  f2f=0.1546  f2l_m=0.0020  f2l=0.0020  total=0.1586 | Val  f2f=0.2819  f2l_m=0.1236  f2l=0.1237  total=0.5292 | Val  instance_f1=0.3421
+Epoch  39/100 (0.4s) | Train  f2f=0.1933  f2l_m=0.0017  f2l=0.0017  total=0.1967 | Val  f2f=0.2246  f2l_m=0.1060  f2l=0.1061  total=0.4367 | Val  instance_f1=0.3456
+Epoch  40/100 (0.4s) | Train  f2f=0.2153  f2l_m=0.0017  f2l=0.0017  total=0.2187 | Val  f2f=0.2565  f2l_m=0.1018  f2l=0.1019  total=0.4601 | Val  instance_f1=0.3512
+Epoch  41/100 (0.4s) | Train  f2f=0.2398  f2l_m=0.0022  f2l=0.0022  total=0.2441 | Val  f2f=0.2382  f2l_m=0.1039  f2l=0.1039  total=0.4460 | Val  instance_f1=0.3382
+Epoch  42/100 (0.4s) | Train  f2f=0.1638  f2l_m=0.0013  f2l=0.0013  total=0.1663 | Val  f2f=0.2274  f2l_m=0.1026  f2l=0.1027  total=0.4327 | Val  instance_f1=0.3545
+Epoch  43/100 (0.4s) | Train  f2f=0.1548  f2l_m=0.0011  f2l=0.0011  total=0.1570 | Val  f2f=0.2091  f2l_m=0.0945  f2l=0.0946  total=0.3981 | Val  instance_f1=0.3710
+Epoch  44/100 (0.4s) | Train  f2f=0.2285  f2l_m=0.0015  f2l=0.0015  total=0.2315 | Val  f2f=0.2103  f2l_m=0.0901  f2l=0.0902  total=0.3906 | Val  instance_f1=0.3593
+Epoch  45/100 (0.4s) | Train  f2f=0.1637  f2l_m=0.0013  f2l=0.0013  total=0.1664 | Val  f2f=0.2051  f2l_m=0.0897  f2l=0.0898  total=0.3846 | Val  instance_f1=0.3788
+Epoch  46/100 (0.4s) | Train  f2f=0.1814  f2l_m=0.0017  f2l=0.0017  total=0.1848 | Val  f2f=0.2296  f2l_m=0.1124  f2l=0.1125  total=0.4544 | Val  instance_f1=0.3250
+Epoch  47/100 (0.4s) | Train  f2f=0.1749  f2l_m=0.0017  f2l=0.0017  total=0.1784 | Val  f2f=0.2343  f2l_m=0.1101  f2l=0.1102  total=0.4545 | Val  instance_f1=0.3743
+Epoch  48/100 (0.4s) | Train  f2f=0.1704  f2l_m=0.0013  f2l=0.0013  total=0.1730 | Val  f2f=0.2258  f2l_m=0.0898  f2l=0.0899  total=0.4055 | Val  instance_f1=0.3773
+Epoch  49/100 (0.4s) | Train  f2f=0.1787  f2l_m=0.0016  f2l=0.0016  total=0.1819 | Val  f2f=0.2246  f2l_m=0.0984  f2l=0.0985  total=0.4216 | Val  instance_f1=0.3698
+Epoch  50/100 (0.4s) | Train  f2f=0.1865  f2l_m=0.0012  f2l=0.0012  total=0.1890 | Val  f2f=0.2321  f2l_m=0.1071  f2l=0.1071  total=0.4463 | Val  instance_f1=0.3763
+Epoch  51/100 (0.4s) | Train  f2f=0.2428  f2l_m=0.0013  f2l=0.0012  total=0.2453 | Val  f2f=0.2151  f2l_m=0.0938  f2l=0.0938  total=0.4027 | Val  instance_f1=0.3678
+Epoch  52/100 (0.4s) | Train  f2f=0.2073  f2l_m=0.0016  f2l=0.0016  total=0.2105 | Val  f2f=0.2287  f2l_m=0.1088  f2l=0.1089  total=0.4464 | Val  instance_f1=0.3634
+Epoch  53/100 (0.4s) | Train  f2f=0.2120  f2l_m=0.0021  f2l=0.0021  total=0.2162 | Val  f2f=0.2197  f2l_m=0.1021  f2l=0.1021  total=0.4239 | Val  instance_f1=0.3284
+Epoch  54/100 (0.4s) | Train  f2f=0.1872  f2l_m=0.0017  f2l=0.0017  total=0.1906 | Val  f2f=0.1726  f2l_m=0.0940  f2l=0.0941  total=0.3607 | Val  instance_f1=0.3757
+Epoch  55/100 (0.4s) | Train  f2f=0.1453  f2l_m=0.0014  f2l=0.0014  total=0.1481 | Val  f2f=0.1832  f2l_m=0.0960  f2l=0.0961  total=0.3753 | Val  instance_f1=0.3703
+Epoch  56/100 (0.4s) | Train  f2f=0.3288  f2l_m=0.0040  f2l=0.0040  total=0.3367 | Val  f2f=0.1909  f2l_m=0.0943  f2l=0.0944  total=0.3797 | Val  instance_f1=0.3631
+Epoch  57/100 (0.4s) | Train  f2f=0.2301  f2l_m=0.0023  f2l=0.0023  total=0.2347 | Val  f2f=0.2006  f2l_m=0.1079  f2l=0.1080  total=0.4165 | Val  instance_f1=0.3470
+Epoch  58/100 (0.4s) | Train  f2f=0.3065  f2l_m=0.0016  f2l=0.0016  total=0.3097 | Val  f2f=0.2255  f2l_m=0.1076  f2l=0.1077  total=0.4407 | Val  instance_f1=0.3536
+Epoch  59/100 (0.4s) | Train  f2f=0.2721  f2l_m=0.0016  f2l=0.0016  total=0.2753 | Val  f2f=0.2364  f2l_m=0.0946  f2l=0.0947  total=0.4258 | Val  instance_f1=0.3657
+Epoch  60/100 (0.4s) | Train  f2f=0.2057  f2l_m=0.0014  f2l=0.0014  total=0.2086 | Val  f2f=0.2358  f2l_m=0.1062  f2l=0.1064  total=0.4484 | Val  instance_f1=0.3692
+Epoch  61/100 (0.4s) | Train  f2f=0.2160  f2l_m=0.0015  f2l=0.0015  total=0.2189 | Val  f2f=0.2241  f2l_m=0.1094  f2l=0.1095  total=0.4430 | Val  instance_f1=0.3349
+Epoch  62/100 (0.4s) | Train  f2f=0.2066  f2l_m=0.0012  f2l=0.0012  total=0.2090 | Val  f2f=0.2108  f2l_m=0.1060  f2l=0.1061  total=0.4229 | Val  instance_f1=0.3504
+Epoch  63/100 (0.4s) | Train  f2f=0.1758  f2l_m=0.0011  f2l=0.0011  total=0.1779 | Val  f2f=0.1979  f2l_m=0.1171  f2l=0.1172  total=0.4322 | Val  instance_f1=0.3415
+Epoch  64/100 (0.4s) | Train  f2f=0.2206  f2l_m=0.0015  f2l=0.0015  total=0.2237 | Val  f2f=0.1825  f2l_m=0.1059  f2l=0.1060  total=0.3943 | Val  instance_f1=0.3613
+Epoch  65/100 (0.4s) | Train  f2f=0.2358  f2l_m=0.0017  f2l=0.0017  total=0.2392 | Val  f2f=0.1822  f2l_m=0.1190  f2l=0.1192  total=0.4204 | Val  instance_f1=0.3441
+Epoch  66/100 (0.4s) | Train  f2f=0.2023  f2l_m=0.0016  f2l=0.0016  total=0.2056 | Val  f2f=0.1646  f2l_m=0.1110  f2l=0.1112  total=0.3868 | Val  instance_f1=0.3641
+Epoch  67/100 (0.4s) | Train  f2f=0.1984  f2l_m=0.0013  f2l=0.0013  total=0.2010 | Val  f2f=0.1585  f2l_m=0.0930  f2l=0.0930  total=0.3445 | Val  instance_f1=0.3660
+Epoch  68/100 (0.4s) | Train  f2f=0.1801  f2l_m=0.0020  f2l=0.0020  total=0.1841 | Val  f2f=0.1533  f2l_m=0.1044  f2l=0.1045  total=0.3622 | Val  instance_f1=0.3561
+Epoch  69/100 (0.4s) | Train  f2f=0.1521  f2l_m=0.0012  f2l=0.0012  total=0.1545 | Val  f2f=0.1565  f2l_m=0.1038  f2l=0.1039  total=0.3642 | Val  instance_f1=0.3731
+Epoch  70/100 (0.4s) | Train  f2f=0.2032  f2l_m=0.0012  f2l=0.0012  total=0.2056 | Val  f2f=0.1571  f2l_m=0.0902  f2l=0.0903  total=0.3376 | Val  instance_f1=0.3646
+Epoch  71/100 (0.4s) | Train  f2f=0.2061  f2l_m=0.0017  f2l=0.0017  total=0.2095 | Val  f2f=0.1590  f2l_m=0.0876  f2l=0.0877  total=0.3342 | Val  instance_f1=0.3554
+Epoch  72/100 (0.5s) | Train  f2f=0.1448  f2l_m=0.0013  f2l=0.0013  total=0.1474 | Val  f2f=0.1578  f2l_m=0.1040  f2l=0.1041  total=0.3659 | Val  instance_f1=0.3615
+Epoch  73/100 (0.4s) | Train  f2f=0.1535  f2l_m=0.0008  f2l=0.0008  total=0.1551 | Val  f2f=0.1575  f2l_m=0.1026  f2l=0.1027  total=0.3628 | Val  instance_f1=0.3652
+Epoch  74/100 (0.4s) | Train  f2f=0.1529  f2l_m=0.0011  f2l=0.0011  total=0.1552 | Val  f2f=0.1640  f2l_m=0.1014  f2l=0.1015  total=0.3669 | Val  instance_f1=0.3686
+Epoch  75/100 (0.4s) | Train  f2f=0.1478  f2l_m=0.0011  f2l=0.0011  total=0.1499 | Val  f2f=0.1716  f2l_m=0.1032  f2l=0.1033  total=0.3781 | Val  instance_f1=0.3777
+Epoch  76/100 (0.4s) | Train  f2f=0.1774  f2l_m=0.0010  f2l=0.0010  total=0.1794 | Val  f2f=0.1696  f2l_m=0.1025  f2l=0.1025  total=0.3746 | Val  instance_f1=0.3618
+Epoch  77/100 (0.4s) | Train  f2f=0.2613  f2l_m=0.0027  f2l=0.0027  total=0.2666 | Val  f2f=0.1617  f2l_m=0.0966  f2l=0.0967  total=0.3550 | Val  instance_f1=0.3567
+Epoch  78/100 (0.4s) | Train  f2f=0.2297  f2l_m=0.0015  f2l=0.0015  total=0.2328 | Val  f2f=0.1642  f2l_m=0.0899  f2l=0.0900  total=0.3441 | Val  instance_f1=0.3631
+Epoch  79/100 (0.4s) | Train  f2f=0.1806  f2l_m=0.0012  f2l=0.0012  total=0.1830 | Val  f2f=0.1611  f2l_m=0.1051  f2l=0.1052  total=0.3714 | Val  instance_f1=0.3572
+Epoch  80/100 (0.4s) | Train  f2f=0.2736  f2l_m=0.0017  f2l=0.0017  total=0.2770 | Val  f2f=0.1506  f2l_m=0.1040  f2l=0.1041  total=0.3587 | Val  instance_f1=0.3231
+Epoch  81/100 (0.4s) | Train  f2f=0.1836  f2l_m=0.0011  f2l=0.0011  total=0.1859 | Val  f2f=0.2841  f2l_m=0.1041  f2l=0.1042  total=0.4925 | Val  instance_f1=0.3605
+Epoch  82/100 (0.5s) | Train  f2f=0.2144  f2l_m=0.0014  f2l=0.0014  total=0.2172 | Val  f2f=0.2731  f2l_m=0.1149  f2l=0.1149  total=0.5029 | Val  instance_f1=0.3334
+Epoch  83/100 (0.5s) | Train  f2f=0.1982  f2l_m=0.0018  f2l=0.0018  total=0.2018 | Val  f2f=0.2412  f2l_m=0.1071  f2l=0.1071  total=0.4555 | Val  instance_f1=0.3433
+Epoch  84/100 (0.4s) | Train  f2f=0.1742  f2l_m=0.0019  f2l=0.0019  total=0.1780 | Val  f2f=0.2134  f2l_m=0.1143  f2l=0.1143  total=0.4421 | Val  instance_f1=0.3410
+Epoch  85/100 (0.4s) | Train  f2f=0.1316  f2l_m=0.0014  f2l=0.0013  total=0.1343 | Val  f2f=0.2199  f2l_m=0.1110  f2l=0.1110  total=0.4418 | Val  instance_f1=0.3781
+Epoch  86/100 (0.4s) | Train  f2f=0.1246  f2l_m=0.0010  f2l=0.0010  total=0.1266 | Val  f2f=0.2229  f2l_m=0.1133  f2l=0.1133  total=0.4495 | Val  instance_f1=0.3569
+Epoch  87/100 (0.4s) | Train  f2f=0.1589  f2l_m=0.0011  f2l=0.0011  total=0.1611 | Val  f2f=0.2209  f2l_m=0.1141  f2l=0.1141  total=0.4491 | Val  instance_f1=0.3456
+Epoch  88/100 (0.4s) | Train  f2f=0.1872  f2l_m=0.0013  f2l=0.0013  total=0.1898 | Val  f2f=0.2195  f2l_m=0.1020  f2l=0.1021  total=0.4236 | Val  instance_f1=0.3505
+Epoch  89/100 (0.4s) | Train  f2f=0.1354  f2l_m=0.0011  f2l=0.0011  total=0.1375 | Val  f2f=0.2217  f2l_m=0.1128  f2l=0.1129  total=0.4475 | Val  instance_f1=0.3522
+Epoch  90/100 (0.4s) | Train  f2f=0.1840  f2l_m=0.0020  f2l=0.0020  total=0.1879 | Val  f2f=0.2053  f2l_m=0.1045  f2l=0.1046  total=0.4144 | Val  instance_f1=0.3397
+Epoch  91/100 (0.4s) | Train  f2f=0.1571  f2l_m=0.0010  f2l=0.0010  total=0.1592 | Val  f2f=0.1980  f2l_m=0.0983  f2l=0.0984  total=0.3947 | Val  instance_f1=0.3679
+Epoch  92/100 (0.4s) | Train  f2f=0.2049  f2l_m=0.0013  f2l=0.0013  total=0.2076 | Val  f2f=0.2017  f2l_m=0.0866  f2l=0.0867  total=0.3750 | Val  instance_f1=0.3611
+Epoch  93/100 (0.4s) | Train  f2f=0.2041  f2l_m=0.0032  f2l=0.0032  total=0.2105 | Val  f2f=0.1941  f2l_m=0.1035  f2l=0.1035  total=0.4011 | Val  instance_f1=0.3362
+Epoch  94/100 (0.4s) | Train  f2f=0.2314  f2l_m=0.0015  f2l=0.0015  total=0.2345 | Val  f2f=0.1871  f2l_m=0.0997  f2l=0.0997  total=0.3865 | Val  instance_f1=0.3470
+Epoch  95/100 (0.5s) | Train  f2f=0.1829  f2l_m=0.0015  f2l=0.0015  total=0.1858 | Val  f2f=0.1959  f2l_m=0.0963  f2l=0.0963  total=0.3885 | Val  instance_f1=0.3672
+Epoch  96/100 (0.4s) | Train  f2f=0.1589  f2l_m=0.0014  f2l=0.0013  total=0.1616 | Val  f2f=0.1970  f2l_m=0.1113  f2l=0.1113  total=0.4196 | Val  instance_f1=0.3468
+Epoch  97/100 (0.4s) | Train  f2f=0.2225  f2l_m=0.0017  f2l=0.0016  total=0.2258 | Val  f2f=0.1929  f2l_m=0.0998  f2l=0.0999  total=0.3926 | Val  instance_f1=0.3278
+Epoch  98/100 (0.4s) | Train  f2f=0.1473  f2l_m=0.0013  f2l=0.0013  total=0.1499 | Val  f2f=0.1787  f2l_m=0.1034  f2l=0.1035  total=0.3856 | Val  instance_f1=0.3500
+Epoch  99/100 (0.4s) | Train  f2f=0.2379  f2l_m=0.0024  f2l=0.0024  total=0.2426 | Val  f2f=0.1934  f2l_m=0.1036  f2l=0.1037  total=0.4006 | Val  instance_f1=0.3063
+Epoch 100/100 (0.4s) | Train  f2f=0.1506  f2l_m=0.0018  f2l=0.0018  total=0.1542 | Val  f2f=0.1757  f2l_m=0.1020  f2l=0.1021  total=0.3798 | Val  instance_f1=0.3546
+====================================================================================================
+Test Results | f2f=0.1800  f2l_m=0.1073  f2l=0.1073  total=0.3946 | instance_f1=0.3533
+Best Val instance_f1: 0.3909

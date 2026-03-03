@@ -7,3 +7,4 @@ from .inference_net_loss import (
     MultiLabelMarginBasedLoss,
     MultiLabelInferenceLoss,
 )
+from .structured_nce_loss import MultiLabelStructuredNCERankingLoss

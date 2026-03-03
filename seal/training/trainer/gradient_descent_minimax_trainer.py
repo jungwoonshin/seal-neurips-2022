@@ -67,7 +67,7 @@ from collections.abc import MutableMapping
 logger = logging.getLogger(__name__)
 
 MODE_LITERALS_TYPE = Literal[
-    ModelMode.UPDATE_TASK_NN.value, ModelMode.UPDATE_SCORE_NN.value
+    ModelMode.UPDATE_TASK_NN.value, ModelMode.UPDATE_SCORE_NN.value, ModelMode.UPDATE_NOISE_NN.value
 ]
 
 
@@ -309,6 +309,7 @@ class GradientDescentMinimaxTrainer(Trainer):
         run_confidence_checks: bool = True,
         num_steps: Dict[MODE_LITERALS_TYPE, int] = None,
         inner_mode: MODE_LITERALS_TYPE = ModelMode.UPDATE_SCORE_NN.value,
+        mode_schedule: Optional[List[MODE_LITERALS_TYPE]] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -406,10 +407,12 @@ class GradientDescentMinimaxTrainer(Trainer):
             self._num_steps = {
                 ModelMode.UPDATE_TASK_NN: 1,
                 ModelMode.UPDATE_SCORE_NN: 1,
+                ModelMode.UPDATE_NOISE_NN: 1,
             }
         else:
             self._num_steps = {ModelMode(k): v for k, v in num_steps.items()}
         self.inner_mode: ModelMode = ModelMode(inner_mode)
+        self.mode_schedule = [ModelMode(m) for m in mode_schedule] if mode_schedule is not None else None
         self.exit_code = 0
 
     def num_steps(self, mode: ModelMode) -> int:
@@ -674,50 +677,57 @@ class GradientDescentMinimaxTrainer(Trainer):
             batch_group_inner_outputs = []
             batch_group_outer_outputs = []
 
-            num_inner_steps = self.num_steps(self.inner_mode)
-            num_outer_steps = self.num_steps(self.inner_mode.flip())
-            for outer_step in range(num_outer_steps):
-
-                for inner_step in range(num_inner_steps):
-                    # Check if optmizer for this mode is present
-
-                    if self.inner_mode.value not in self.optimizer:
-                        break
-                    # we need to zero_grad before each optimization step.
+            if self.mode_schedule is not None:
+                # N-player mode: cycle through modes in schedule
+                for mode in self.mode_schedule:
+                    num_steps_for_mode = self.num_steps(mode)
+                    for step in range(num_steps_for_mode):
+                        if mode.value not in self.optimizer:
+                            break
+                        self.optimizer.zero_grad(opt_key=mode.value, set_to_none=True)
+                        (
+                            step_loss,
+                            step_outputs,
+                        ) = self.batch_group_step(batch_group, mode=mode)
+                        # Accumulate into inner/outer for logging compatibility
+                        if mode == self.inner_mode:
+                            batch_group_inner_outputs += step_outputs
+                            batch_group_inner_loss += step_loss / num_steps_for_mode
+                        else:
+                            batch_group_outer_outputs += step_outputs
+                            batch_group_outer_loss += step_loss / num_steps_for_mode
+                train_inner_loss += batch_group_inner_loss
+                train_outer_loss += batch_group_outer_loss
+            else:
+                # Original 2-player inner/outer loop (backward compat)
+                num_inner_steps = self.num_steps(self.inner_mode)
+                num_outer_steps = self.num_steps(self.inner_mode.flip())
+                for outer_step in range(num_outer_steps):
+                    for inner_step in range(num_inner_steps):
+                        if self.inner_mode.value not in self.optimizer:
+                            break
+                        self.optimizer.zero_grad(
+                            opt_key=self.inner_mode.value, set_to_none=True
+                        )
+                        (
+                            batch_group_inner_loss_,
+                            batch_group_inner_outputs_,
+                        ) = self.batch_group_step(batch_group, mode=self.inner_mode)
+                        batch_group_inner_outputs += batch_group_inner_outputs_
+                        batch_group_inner_loss += batch_group_inner_loss_ / num_inner_steps
+                        train_inner_loss += batch_group_inner_loss
+                    if self.inner_mode.flip().value not in self.optimizer:
+                        continue
                     self.optimizer.zero_grad(
-                        opt_key=self.inner_mode.value, set_to_none=True
+                        opt_key=self.inner_mode.flip().value, set_to_none=True
                     )
                     (
-                        batch_group_inner_loss_,
-                        batch_group_inner_outputs_,
-                    ) = self.batch_group_step(
-                        batch_group, mode=self.inner_mode
-                    )
-                    batch_group_inner_outputs += batch_group_inner_outputs_
-                    batch_group_inner_loss += (
-                        batch_group_inner_loss_ / num_inner_steps
-                    )  # log avg inner loss
-                    train_inner_loss += batch_group_inner_loss
-                # outer step
-                # Check if optmizer for this mode is present
-
-                if self.inner_mode.flip().value not in self.optimizer:
-                    continue
-
-                self.optimizer.zero_grad(
-                    opt_key=self.inner_mode.flip().value, set_to_none=True
-                )
-                (
-                    batch_group_outer_loss_,
-                    batch_group_outer_outputs_,
-                ) = self.batch_group_step(
-                    batch_group, mode=self.inner_mode.flip()
-                )
-                batch_group_outer_outputs += batch_group_outer_outputs_
-                batch_group_outer_loss += (
-                    batch_group_outer_loss_ / num_outer_steps
-                )  # log avg outer loss
-                train_outer_loss += batch_group_outer_loss
+                        batch_group_outer_loss_,
+                        batch_group_outer_outputs_,
+                    ) = self.batch_group_step(batch_group, mode=self.inner_mode.flip())
+                    batch_group_outer_outputs += batch_group_outer_outputs_
+                    batch_group_outer_loss += batch_group_outer_loss_ / num_outer_steps
+                    train_outer_loss += batch_group_outer_loss
 
             # Update moving averages
 
@@ -1281,6 +1291,7 @@ class GradientDescentMinimaxTrainer(Trainer):
         run_confidence_checks: bool = True,
         num_steps: Dict[MODE_LITERALS_TYPE, int] = None,
         inner_mode: MODE_LITERALS_TYPE = ModelMode.UPDATE_SCORE_NN.value,
+        mode_schedule: Optional[List[MODE_LITERALS_TYPE]] = None,
         **kwargs,
     ) -> Trainer:
         """
@@ -1395,6 +1406,7 @@ class GradientDescentMinimaxTrainer(Trainer):
             run_confidence_checks=run_confidence_checks,
             num_steps=num_steps,
             inner_mode=inner_mode,
+            mode_schedule=mode_schedule,
             **kwargs,
         )
 

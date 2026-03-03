@@ -6,6 +6,7 @@ import torch
 class ModelMode(Enum):
     UPDATE_TASK_NN: str = "task_nn"
     UPDATE_SCORE_NN: str = "score_nn"
+    UPDATE_NOISE_NN: str = "noise_nn"
     COMPUTE_SCORE: str = "compute_score_nn"
 
     def flip(self) -> "ModelMode":

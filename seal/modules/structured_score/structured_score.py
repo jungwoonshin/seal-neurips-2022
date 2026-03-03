@@ -25,7 +25,25 @@ class StructuredScore(torch.nn.Module, Registrable):
         """
         raise NotImplementedError
 
+    def compute_vector_energy(
+        self,
+        y: torch.Tensor,
+        buffer: Dict,
+        **kwargs: Any,
+    ) -> Optional[torch.Tensor]:
+        """Returns per-label energy vector of shape (batch, num_samples, L).
 
+        Default: distributes scalar energy uniformly across labels.
+        Subclasses should override for natural decompositions.
+
+        Invariant: compute_vector_energy(y, buffer).sum(dim=-1) == forward(y, buffer)
+        """
+        scalar = self.forward(y, buffer, **kwargs)  # (batch, num_samples)
+        num_labels = y.shape[-1]
+        return scalar.unsqueeze(-1) / num_labels  # (batch, num_samples, L)
+
+
+@StructuredScore.register("structured-score-container")
 class StructuredScoreContainer(StructuredScore):
     """A collection of different `StructuredScore` modules
     that will be added together to form the total energy"""
@@ -49,3 +67,17 @@ class StructuredScoreContainer(StructuredScore):
             total_energy = total_energy + energy(y, buffer, **kwargs)
 
         return total_energy
+
+    def compute_vector_energy(
+        self,
+        y: torch.Tensor,
+        buffer: Dict,
+        **kwargs: Any,
+    ) -> Optional[torch.Tensor]:
+        """Sums constituent vector energies."""
+        total: Optional[torch.Tensor] = None
+        for energy in self.constituent_energies:
+            vec = energy.compute_vector_energy(y, buffer, **kwargs)
+            if vec is not None:
+                total = vec if total is None else total + vec
+        return total
