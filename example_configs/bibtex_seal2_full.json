@@ -116,7 +116,8 @@
         "num_epochs": 300,
         "num_steps": {
             "score_nn": 1,
-            "noise_nn": 1
+            "noise_nn": 1,
+            "task_nn": 1
         },
         "optimizer": {
             "optimizers": {
@@ -126,6 +127,11 @@
                     "weight_decay": 1e-05
                 },
                 "noise_nn": {
+                    "type": "adamw",
+                    "lr": 0.001,
+                    "weight_decay": 1e-05
+                },
+                "task_nn": {
                     "type": "adamw",
                     "lr": 0.001,
                     "weight_decay": 1e-05
