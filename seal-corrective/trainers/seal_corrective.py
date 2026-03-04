@@ -104,7 +104,7 @@ class SEALCorrectiveTrainer:
                 diagnostics = self._compute_diagnostics()
                 print(
                     f"  Step {self.step}: |C| = {n_critical}, "
-                    f"frac_inverted = {diagnostics['frac_inverted']:.4f}, "
+                    f"frac = {diagnostics['frac_inverted']:.4f}, "
                     f"mean_delta = {diagnostics['mean_delta_on_C']:.4f}, "
                     f"mean_error = {diagnostics['mean_task_error_on_C']:.4f}"
                 )

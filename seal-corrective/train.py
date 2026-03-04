@@ -129,7 +129,6 @@ def main():
         config["lr_energy"] = args.lr_energy
     if args.lr_task is not None:
         config["lr_task"] = args.lr_task
-
     # ── Logging setup ──
     os.makedirs(args.log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

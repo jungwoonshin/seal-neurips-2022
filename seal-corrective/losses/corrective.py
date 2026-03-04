@@ -46,22 +46,9 @@ class EnergyCorrector:
     def diagnose(self, energy_net: nn.Module, task_net: nn.Module,
                  loaders, device: torch.device) -> int:
         """
-        Sweep one or more data loaders and build the critical set C.
-
-        Softened criterion (combines three principles):
-        1. Not just inverted (delta < 0) but also barely-correct examples (delta < margin)
-        2. Proportionality: energy gap should be proportional to task error
-        3. Task net must actually be making an error
+        Sweep data loaders to find current critical examples.
 
         C = {(x, y) | delta < alpha * task_error AND task_error > 0}
-
-        where delta = E(x, F(x)) - E(x, y). This includes:
-        - Inverted examples (delta < 0): energy surface is wrong
-        - Under-separated examples (0 < delta < alpha * task_error): energy is
-          correct but the gap is too small relative to the prediction error
-
-        Args:
-            loaders: A single DataLoader or a list of DataLoaders to scan.
 
         Returns:
             Size of the critical set.
@@ -85,8 +72,6 @@ class EnergyCorrector:
                     delta = e_pred - e_true
                     task_error = self._compute_error(y_pred, y)
 
-                    # Softened: include examples where delta < alpha * task_error
-                    # This catches inverted AND under-separated examples
                     mask = (delta < self.alpha * task_error) & (task_error > 0)
 
                     for i in range(x.size(0)):
@@ -99,11 +84,10 @@ class EnergyCorrector:
                                 "delta": delta[i].cpu(),
                             })
 
-        # Compute rank-based criticality from |delta| (scale-invariant)
+        # Compute rank-based criticality from |delta|
         if len(self.critical_set) > 0:
             deltas = torch.tensor([s["delta"].abs().item() for s in self.critical_set])
-            ranks = deltas.argsort().argsort().float()  # rank: 0 to N-1
-            # Map to (0, 1] — lowest inversion gets small weight, deepest gets ~1.0
+            ranks = deltas.argsort().argsort().float()
             percentiles = (ranks + 1.0) / len(self.critical_set)
             for i, s in enumerate(self.critical_set):
                 s["criticality"] = percentiles[i]
