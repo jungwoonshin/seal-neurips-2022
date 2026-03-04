@@ -1,0 +1,8 @@
+{
+  "hidden_dim": 768,
+  "energy_hidden": 768,
+  "best_val_f1": 0.4553,
+  "best_test_f1": 0.4335,
+  "best_epoch": 65,
+  "time_s": 244.0
+}

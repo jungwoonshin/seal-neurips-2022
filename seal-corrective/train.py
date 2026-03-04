@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
     "task_error_metric": "f1",
     "correct_global_only": False,
     "batch_size": 32,
-    "hidden_dim": 768,
+    "hidden_dim": 512,
     "energy_hidden": 512,
     "min_margin": 0.1,
 }
