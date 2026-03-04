@@ -19,7 +19,16 @@ from torch.utils.data import DataLoader, TensorDataset
 from models import TaskNet, EnergyNet
 from losses import EnergyCorrector
 from trainers import SEALCorrectiveTrainer
-from data_utils import load_bibtex, compute_instance_f1
+from data_utils import (
+    load_bibtex,
+    load_delicious,
+    load_genbase,
+    load_expr_fun,
+    load_eurlex_ev,
+    load_cal500,
+    load_spo_fun,
+    compute_instance_f1,
+)
 
 
 DEFAULT_CONFIG = {
@@ -94,8 +103,21 @@ def evaluate(task_net, loader, device, split_name="val"):
 
 def main():
     parser = argparse.ArgumentParser(description="SEAL Corrective Energy Alignment")
-    parser.add_argument("--dataset", type=str, default="bibtex",
-                        choices=["bibtex", "synthetic"])
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="bibtex",
+        choices=[
+            "bibtex",
+            "delicious",
+            "genbase",
+            "expr_fun",
+            "eurlex_ev",
+            "cal500",
+            "spo_fun",
+            "synthetic",
+        ],
+    )
     parser.add_argument("--data-dir", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--beta", type=float, default=None)
@@ -107,7 +129,10 @@ def main():
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--lr-energy", type=float, default=None)
     parser.add_argument("--lr-task", type=float, default=None)
-    parser.add_argument("--no-correction-interval", action="store_true",
+    parser.add_argument("--hidden-dim", type=int, default=None)
+    parser.add_argument("--energy-hidden", type=int, default=None)
+    parser.add_argument("--min-margin", type=float, default=None)
+    parser.add_argument("--no-correction-interval", default=True,
                         help="Compute corrective loss inline per batch (no periodic diagnosis)")
     parser.add_argument("--log-dir", type=str, default="logs",
                         help="Directory for log files")
@@ -132,6 +157,12 @@ def main():
         config["lr_energy"] = args.lr_energy
     if args.lr_task is not None:
         config["lr_task"] = args.lr_task
+    if args.hidden_dim is not None:
+        config["hidden_dim"] = args.hidden_dim
+    if args.energy_hidden is not None:
+        config["energy_hidden"] = args.energy_hidden
+    if args.min_margin is not None:
+        config["min_margin"] = args.min_margin
     if args.no_correction_interval:
         config["no_correction_interval"] = True
     # ── Logging setup ──
@@ -155,13 +186,31 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # ── Data ──
+    DATA_DIR_DEFAULTS = {
+        "bibtex": "bibtex_stratified10folds_meka",
+        "delicious": "delicious-stratified10folds-meka",
+        "genbase": "genbase-stratified10folds-meka",
+        "expr_fun": "expr_fun",
+        "eurlex_ev": "eurlex-ev-stratified10folds-meka",
+        "cal500": "cal500-stratified10folds-meka",
+        "spo_fun": "spo_fun",
+    }
+    LOADERS = {
+        "bibtex": load_bibtex,
+        "delicious": load_delicious,
+        "genbase": load_genbase,
+        "expr_fun": load_expr_fun,
+        "eurlex_ev": load_eurlex_ev,
+        "cal500": load_cal500,
+        "spo_fun": load_spo_fun,
+    }
     test_loader = None
     pos_weight = None
-    if args.dataset == "bibtex":
+    if args.dataset in LOADERS:
         data_dir = args.data_dir or os.path.join(
-            os.path.dirname(__file__), "..", "data", "bibtex_stratified10folds_meka")
-        train_loader, val_loader, test_loader, input_dim, num_labels, pos_weight = load_bibtex(
-            data_dir, config["batch_size"])
+            os.path.dirname(__file__), "..", "data", DATA_DIR_DEFAULTS[args.dataset])
+        train_loader, val_loader, test_loader, input_dim, num_labels, pos_weight = LOADERS[
+            args.dataset](data_dir, config["batch_size"])
     else:
         input_dim, num_labels = 50, 10
         train_ds = make_synthetic_data(500, input_dim, num_labels, seed=42)

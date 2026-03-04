@@ -1,5 +1,8 @@
 
 *.jsonl
+*.th
+output/
+
 
 __pycache__
 .venv*

@@ -1,0 +1,109 @@
+{
+  "config": {
+    "lr_energy": 0.001,
+    "lr_task": 0.001,
+    "epochs": 70,
+    "lambda1": 0.01,
+    "lambda2": 1.0,
+    "beta": 0.1,
+    "alpha": 1.0,
+    "correction_interval": 25,
+    "task_error_metric": "f1",
+    "correct_global_only": false,
+    "batch_size": 32,
+    "min_margin": 0.1,
+    "no_correction_interval": true
+  },
+  "results": [
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.001,
+      "lr_task": 0.001,
+      "best_val_f1": 0.4559,
+      "best_test_f1": 0.4357,
+      "best_epoch": 52,
+      "time_s": 103.0
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.0005,
+      "lr_task": 0.001,
+      "best_val_f1": 0.4502,
+      "best_test_f1": 0.4393,
+      "best_epoch": 69,
+      "time_s": 105.6
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.0001,
+      "lr_task": 0.001,
+      "best_val_f1": 0.4492,
+      "best_test_f1": 0.4364,
+      "best_epoch": 51,
+      "time_s": 109.6
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.0005,
+      "lr_task": 0.0005,
+      "best_val_f1": 0.4428,
+      "best_test_f1": 0.4314,
+      "best_epoch": 54,
+      "time_s": 99.2
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.001,
+      "lr_task": 0.0005,
+      "best_val_f1": 0.4383,
+      "best_test_f1": 0.4317,
+      "best_epoch": 42,
+      "time_s": 102.3
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.0001,
+      "lr_task": 0.0005,
+      "best_val_f1": 0.4379,
+      "best_test_f1": 0.4307,
+      "best_epoch": 48,
+      "time_s": 112.9
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.001,
+      "lr_task": 0.0001,
+      "best_val_f1": 0.4271,
+      "best_test_f1": 0.4182,
+      "best_epoch": 69,
+      "time_s": 97.4
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.0005,
+      "lr_task": 0.0001,
+      "best_val_f1": 0.4191,
+      "best_test_f1": 0.4111,
+      "best_epoch": 54,
+      "time_s": 91.6
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.0001,
+      "lr_task": 0.0001,
+      "best_val_f1": 0.4168,
+      "best_test_f1": 0.4174,
+      "best_epoch": 69,
+      "time_s": 89.9
+    }
+  ]
+}

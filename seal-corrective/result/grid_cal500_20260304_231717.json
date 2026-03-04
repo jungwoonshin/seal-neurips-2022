@@ -1,0 +1,201 @@
+{
+  "dataset": "cal500",
+  "epochs": 75,
+  "config": {
+    "lr_energy": 0.001,
+    "lr_task": 0.001,
+    "epochs": 75,
+    "lambda1": 0.01,
+    "lambda2": 1.0,
+    "beta": 0.1,
+    "alpha": 1.0,
+    "correction_interval": 25,
+    "task_error_metric": "f1",
+    "correct_global_only": false,
+    "batch_size": 32,
+    "min_margin": 0.1,
+    "no_correction_interval": true
+  },
+  "results": [
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.001,
+      "lr_task": 0.005,
+      "best_val_f1": 0.4188,
+      "best_test_f1": 0.4152,
+      "best_epoch": 55,
+      "time_s": 6.2
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.01,
+      "lr_task": 0.001,
+      "best_val_f1": 0.4216,
+      "best_test_f1": 0.4342,
+      "best_epoch": 63,
+      "time_s": 7.4
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.01,
+      "lr_task": 0.01,
+      "best_val_f1": 0.4075,
+      "best_test_f1": 0.4283,
+      "best_epoch": 53,
+      "time_s": 8.5
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.001,
+      "lr_task": 0.005,
+      "best_val_f1": 0.4058,
+      "best_test_f1": 0.4183,
+      "best_epoch": 41,
+      "time_s": 13.1
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.005,
+      "lr_task": 0.01,
+      "best_val_f1": 0.4138,
+      "best_test_f1": 0.4209,
+      "best_epoch": 1,
+      "time_s": 19.2
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.005,
+      "lr_task": 0.005,
+      "best_val_f1": 0.4131,
+      "best_test_f1": 0.418,
+      "best_epoch": 1,
+      "time_s": 20.6
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.001,
+      "lr_task": 0.01,
+      "best_val_f1": 0.3971,
+      "best_test_f1": 0.4234,
+      "best_epoch": 21,
+      "time_s": 18.0
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.01,
+      "lr_task": 0.005,
+      "best_val_f1": 0.434,
+      "best_test_f1": 0.4443,
+      "best_epoch": 50,
+      "time_s": 7.4
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.01,
+      "lr_task": 0.01,
+      "best_val_f1": 0.4161,
+      "best_test_f1": 0.43,
+      "best_epoch": 2,
+      "time_s": 8.6
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.001,
+      "lr_task": 0.001,
+      "best_val_f1": 0.3887,
+      "best_test_f1": 0.3935,
+      "best_epoch": 4,
+      "time_s": 7.5
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.01,
+      "lr_task": 0.005,
+      "best_val_f1": 0.4266,
+      "best_test_f1": 0.4323,
+      "best_epoch": 11,
+      "time_s": 6.9
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.005,
+      "lr_task": 0.005,
+      "best_val_f1": 0.4186,
+      "best_test_f1": 0.4236,
+      "best_epoch": 28,
+      "time_s": 7.6
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.001,
+      "lr_task": 0.01,
+      "best_val_f1": 0.3849,
+      "best_test_f1": 0.3948,
+      "best_epoch": 17,
+      "time_s": 6.9
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.005,
+      "lr_task": 0.001,
+      "best_val_f1": 0.4204,
+      "best_test_f1": 0.4253,
+      "best_epoch": 75,
+      "time_s": 7.4
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.001,
+      "lr_task": 0.001,
+      "best_val_f1": 0.3818,
+      "best_test_f1": 0.3795,
+      "best_epoch": 28,
+      "time_s": 5.9
+    },
+    {
+      "hidden_dim": 512,
+      "energy_hidden": 512,
+      "lr_energy": 0.005,
+      "lr_task": 0.01,
+      "best_val_f1": 0.4075,
+      "best_test_f1": 0.4095,
+      "best_epoch": 38,
+      "time_s": 7.4
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.01,
+      "lr_task": 0.001,
+      "best_val_f1": 0.415,
+      "best_test_f1": 0.423,
+      "best_epoch": 52,
+      "time_s": 7.7
+    },
+    {
+      "hidden_dim": 768,
+      "energy_hidden": 768,
+      "lr_energy": 0.005,
+      "lr_task": 0.001,
+      "best_val_f1": 0.3954,
+      "best_test_f1": 0.4104,
+      "best_epoch": 38,
+      "time_s": 6.3
+    }
+  ]
+}
