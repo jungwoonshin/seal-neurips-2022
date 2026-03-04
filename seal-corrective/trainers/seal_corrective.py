@@ -84,6 +84,68 @@ class SEALCorrectiveTrainer:
 
     def train_one_epoch(self, epoch: int):
         """Train for one epoch. Returns average losses."""
+        if self.config.get("no_correction_interval", False):
+            return self._train_one_epoch_inline(epoch)
+        return self._train_one_epoch_periodic(epoch)
+
+    def _train_one_epoch_inline(self, epoch: int):
+        """Inline mode: corrective loss computed directly on each batch."""
+        self.task_net.train()
+        self.energy_net.train()
+
+        epoch_loss_theta = 0.0
+        epoch_loss_phi = 0.0
+        epoch_n_critical = 0
+        n_batches = 0
+
+        for x, y in self.train_loader:
+            x, y = x.to(self.device), y.to(self.device)
+
+            # ── Step 1: Update Theta (energy net) ──
+            self.opt_theta.zero_grad()
+            loss_correct, n_crit = self.corrector.batch_corrective_loss(
+                self.energy_net, self.task_net, x, y)
+            loss_theta = self.config["beta"] * loss_correct
+            loss_theta.backward()
+            torch.nn.utils.clip_grad_norm_(self.energy_net.parameters(), 1.0)
+            self.opt_theta.step()
+
+            # ── Step 2: Update Phi (task net) ──
+            self.opt_phi.zero_grad()
+            y_pred = self.task_net(x)
+            energy = self.energy_net(x, y_pred)
+            bce = self._compute_bce(y_pred, y)
+            loss_phi = (
+                self.config["lambda1"] * energy + self.config["lambda2"] * bce
+            ).mean()
+            loss_phi.backward()
+            torch.nn.utils.clip_grad_norm_(self.task_net.parameters(), 1.0)
+            self.opt_phi.step()
+
+            epoch_loss_theta += loss_theta.item()
+            epoch_loss_phi += loss_phi.item()
+            epoch_n_critical += n_crit
+            n_batches += 1
+            self.step += 1
+
+        if n_batches > 0:
+            avg_theta = epoch_loss_theta / n_batches
+            avg_phi = epoch_loss_phi / n_batches
+            lr_t = self.opt_theta.param_groups[0]["lr"]
+            lr_p = self.opt_phi.param_groups[0]["lr"]
+            total = len(self.train_loader.dataset) if hasattr(self.train_loader, "dataset") else n_batches
+            print(
+                f"  Epoch {epoch + 1}: "
+                f"L_theta = {avg_theta:.4f}, "
+                f"L_phi = {avg_phi:.4f}, "
+                f"n_critical = {epoch_n_critical}/{total}, "
+                f"lr_task = {lr_p:.6f}, lr_energy = {lr_t:.6f}"
+            )
+            return avg_theta, avg_phi
+        return 0.0, 0.0
+
+    def _train_one_epoch_periodic(self, epoch: int):
+        """Periodic mode: diagnose every correction_interval steps."""
         self.task_net.train()
         self.energy_net.train()
 
@@ -113,12 +175,9 @@ class SEALCorrectiveTrainer:
             c_batch = self.corrector.sample_batch(bs)
 
             # ── Step 1: Update Theta (energy net) ──
-            # Corrective loss is the sole energy training signal (no standard energy loss).
-            # This prevents the standard margin loss from killing inversions before
-            # the corrective mechanism can act on them.
             self.opt_theta.zero_grad()
 
-            loss_correct = self.corrector.corrective_loss(self.energy_net, c_batch)
+            loss_correct = self.corrector.corrective_loss(self.energy_net, c_batch, task_net=self.task_net)
 
             loss_theta = self.config["beta"] * loss_correct
             loss_theta.backward()
@@ -128,27 +187,12 @@ class SEALCorrectiveTrainer:
             # ── Step 2: Update Phi (task net) ──
             self.opt_phi.zero_grad()
 
-            # Regular pass on batch data
             y_pred = self.task_net(x)
             energy = self.energy_net(x, y_pred)
             bce = self._compute_bce(y_pred, y)
-            loss_phi_batch = (
+            loss_phi = (
                 self.config["lambda1"] * energy + self.config["lambda2"] * bce
             ).mean()
-
-            # Additional pass on critical-sampled data (task net learns from its own mistakes)
-            loss_phi_crit = torch.tensor(0.0, device=self.device)
-            if len(c_batch) > 0:
-                cx = torch.stack([s["x"] for s in c_batch]).to(self.device)
-                cy = torch.stack([s["y"] for s in c_batch]).to(self.device)
-                cy_pred = self.task_net(cx)
-                c_energy = self.energy_net(cx, cy_pred)
-                c_bce = self._compute_bce(cy_pred, cy)
-                loss_phi_crit = (
-                    self.config["lambda1"] * c_energy + self.config["lambda2"] * c_bce
-                ).mean()
-
-            loss_phi = loss_phi_batch + self.config["beta"] * loss_phi_crit
             loss_phi.backward()
             torch.nn.utils.clip_grad_norm_(self.task_net.parameters(), 1.0)
             self.opt_phi.step()

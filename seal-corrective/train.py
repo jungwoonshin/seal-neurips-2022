@@ -25,17 +25,18 @@ from data_utils import load_bibtex, compute_instance_f1
 DEFAULT_CONFIG = {
     "lr_energy": 0.001,
     "lr_task": 0.001,
-    "epochs": 3,
+    "epochs": 300,
     "lambda1": 0.01,
     "lambda2": 1.0,
     "beta": 0.1,
     "alpha": 1.0,
-    "correction_interval": 50,
+    "correction_interval": 25,
     "task_error_metric": "f1",
     "correct_global_only": False,
     "batch_size": 32,
-    "hidden_dim": 256,
-    "energy_hidden": 256,
+    "hidden_dim": 768,
+    "energy_hidden": 512,
+    "min_margin": 0.1,
 }
 
 
@@ -106,6 +107,8 @@ def main():
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--lr-energy", type=float, default=None)
     parser.add_argument("--lr-task", type=float, default=None)
+    parser.add_argument("--no-correction-interval", action="store_true",
+                        help="Compute corrective loss inline per batch (no periodic diagnosis)")
     parser.add_argument("--log-dir", type=str, default="logs",
                         help="Directory for log files")
     args = parser.parse_args()
@@ -129,6 +132,8 @@ def main():
         config["lr_energy"] = args.lr_energy
     if args.lr_task is not None:
         config["lr_task"] = args.lr_task
+    if args.no_correction_interval:
+        config["no_correction_interval"] = True
     # ── Logging setup ──
     os.makedirs(args.log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -182,6 +187,7 @@ def main():
         alpha=config["alpha"],
         task_error_metric=config["task_error_metric"],
         correct_global_only=config["correct_global_only"],
+        min_margin=config["min_margin"],
     )
 
     # ── Train ──

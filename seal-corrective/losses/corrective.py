@@ -26,6 +26,7 @@ class EnergyCorrector:
         alpha: float = 1.0,
         task_error_metric: str = "f1",
         correct_global_only: bool = False,
+        min_margin: float = 0.1,
     ):
         """
         Args:
@@ -33,8 +34,11 @@ class EnergyCorrector:
             task_error_metric: One of 'hamming', 'f1', 'structural'.
             correct_global_only: If True, only correct E_global (label-dependency
                 matrix M and scoring vector v), leaving per-label scoring alone.
+            min_margin: Floor on the hinge margin so the energy net always
+                has to maintain a meaningful gap, even when task error is small.
         """
         self.alpha = alpha
+        self.min_margin = min_margin
         self.metric = task_error_metric
         self.correct_global_only = correct_global_only
         self.critical_set: list[dict] = []
@@ -72,7 +76,8 @@ class EnergyCorrector:
                     delta = e_pred - e_true
                     task_error = self._compute_error(y_pred, y)
 
-                    mask = (delta < self.alpha * task_error) & (task_error > 0)
+                    required_gap = torch.clamp(self.alpha * task_error, min=self.min_margin)
+                    mask = (delta < required_gap) & (task_error > 0)
 
                     for i in range(x.size(0)):
                         if mask[i]:
@@ -101,16 +106,16 @@ class EnergyCorrector:
     # ──────────────────────────────────────────────
 
     def corrective_loss(self, energy_net: nn.Module,
-                        batch_from_critical_set: list[dict]) -> torch.Tensor:
+                        batch_from_critical_set: list[dict],
+                        task_net: nn.Module = None) -> torch.Tensor:
         """
-        L_correct = (1/B) * sum w_i * [alpha * l(F(x),y) + E(x,y) - E(x,F(x))]_+
+        L_correct = (1/B) * sum [max(alpha * l, min_margin) + E(x,y) - E(x,F(x))]_+
 
-        w_i is the rank-based criticality weight (replaces the original task_error
-        multiplier to avoid double-counting — task_error already appears inside
-        the hinge margin).
+        If task_net is provided, y_pred and task_error are recomputed fresh
+        from the current task net (no staleness). Otherwise falls back to
+        the stored snapshots.
 
         y_pred is detached: we update Theta (energy params) only.
-        Energies are computed fresh from the current energy_net.
         """
         if len(batch_from_critical_set) == 0:
             return torch.tensor(0.0, requires_grad=True)
@@ -119,8 +124,15 @@ class EnergyCorrector:
 
         x = torch.stack([s["x"] for s in batch_from_critical_set]).to(device)
         y = torch.stack([s["y"] for s in batch_from_critical_set]).to(device)
-        y_pred = torch.stack([s["y_pred"] for s in batch_from_critical_set]).detach().to(device)
-        task_errors = torch.stack([s["task_error"] for s in batch_from_critical_set]).detach().to(device)
+
+        if task_net is not None:
+            # Fresh y_pred and task_error from current task net
+            with torch.no_grad():
+                y_pred = task_net(x).detach()
+                task_errors = self._compute_error(y_pred, y).detach()
+        else:
+            y_pred = torch.stack([s["y_pred"] for s in batch_from_critical_set]).detach().to(device)
+            task_errors = torch.stack([s["task_error"] for s in batch_from_critical_set]).detach().to(device)
 
         # Fresh energy computation from current network state
         if self.correct_global_only:
@@ -130,11 +142,50 @@ class EnergyCorrector:
             e_true = energy_net(x, y.float())
             e_pred = energy_net(x, y_pred)
 
-        # Hinge: [alpha * l + E(x,y) - E(x,F(x))]_+
-        margin = self.alpha * task_errors
+        # Hinge: [max(alpha * l, min_margin) + E(x,y) - E(x,F(x))]_+
+        margin = torch.clamp(self.alpha * task_errors, min=self.min_margin)
         violation = F.relu(margin + e_true - e_pred)
 
         return violation.mean()
+
+    # ──────────────────────────────────────────────
+    # Inline corrective loss (no diagnosis needed)
+    # ──────────────────────────────────────────────
+
+    def batch_corrective_loss(self, energy_net: nn.Module, task_net: nn.Module,
+                              x: torch.Tensor, y: torch.Tensor) -> tuple[torch.Tensor, int]:
+        """
+        Compute corrective loss directly on a training batch.
+
+        No stored critical set, no diagnosis sweep, no correction_interval.
+        Just check which examples in this batch are critical and apply the hinge.
+
+        Returns:
+            (loss, n_critical) — loss tensor and count of critical examples in batch.
+        """
+        with torch.no_grad():
+            y_pred = task_net(x).detach()
+            task_errors = self._compute_error(y_pred, y).detach()
+
+        if self.correct_global_only:
+            e_true = energy_net.energy_global(y.float())
+            e_pred = energy_net.energy_global(y_pred)
+        else:
+            e_true = energy_net(x, y.float())
+            e_pred = energy_net(x, y_pred)
+
+        margin = torch.clamp(self.alpha * task_errors, min=self.min_margin)
+        violation = margin + e_true - e_pred
+
+        # Only keep critical examples: violation > 0 AND task_error > 0
+        critical_mask = (violation > 0) & (task_errors > 0)
+        n_critical = critical_mask.sum().item()
+
+        if n_critical == 0:
+            return torch.tensor(0.0, device=x.device, requires_grad=True), 0
+
+        loss = F.relu(violation[critical_mask]).mean()
+        return loss, int(n_critical)
 
     # ──────────────────────────────────────────────
     # Sampling from the critical set
