@@ -31,12 +31,10 @@ BASE_CONFIG = {
     "lambda2": 1.0,
     "beta": 0.1,
     "alpha": 1.0,
-    "correction_interval": 25,
     "task_error_metric": "f1",
     "correct_global_only": False,
     "batch_size": 32,
     "min_margin": 0.1,
-    "no_correction_interval": True,
 }
 
 DATASETS = {

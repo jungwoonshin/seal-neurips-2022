@@ -84,12 +84,6 @@ class SEALCorrectiveTrainer:
 
     def train_one_epoch(self, epoch: int):
         """Train for one epoch. Returns average losses."""
-        if self.config.get("no_correction_interval", False):
-            return self._train_one_epoch_inline(epoch)
-        return self._train_one_epoch_periodic(epoch)
-
-    def _train_one_epoch_inline(self, epoch: int):
-        """Inline mode: corrective loss computed directly on each batch."""
         self.task_net.train()
         self.energy_net.train()
 
@@ -144,108 +138,6 @@ class SEALCorrectiveTrainer:
             return avg_theta, avg_phi
         return 0.0, 0.0
 
-    def _train_one_epoch_periodic(self, epoch: int):
-        """Periodic mode: diagnose every correction_interval steps."""
-        self.task_net.train()
-        self.energy_net.train()
-
-        epoch_loss_theta = 0.0
-        epoch_loss_phi = 0.0
-        n_batches = 0
-
-        for x, y in self.train_loader:
-            x, y = x.to(self.device), y.to(self.device)
-            bs = x.size(0)
-
-            # ── Periodic diagnosis ──
-            if self.step % self.config["correction_interval"] == 0:
-                n_critical = self.corrector.diagnose(
-                    self.energy_net, self.task_net,
-                    self.train_loader, self.device,
-                )
-                diagnostics = self._compute_diagnostics()
-                print(
-                    f"  Step {self.step}: |C| = {n_critical}, "
-                    f"frac = {diagnostics['frac_inverted']:.4f}, "
-                    f"mean_delta = {diagnostics['mean_delta_on_C']:.4f}, "
-                    f"mean_error = {diagnostics['mean_task_error_on_C']:.4f}"
-                )
-
-            # Sample critical batch (shared for both updates)
-            c_batch = self.corrector.sample_batch(bs)
-
-            # ── Step 1: Update Theta (energy net) ──
-            self.opt_theta.zero_grad()
-
-            loss_correct = self.corrector.corrective_loss(self.energy_net, c_batch, task_net=self.task_net)
-
-            loss_theta = self.config["beta"] * loss_correct
-            loss_theta.backward()
-            torch.nn.utils.clip_grad_norm_(self.energy_net.parameters(), 1.0)
-            self.opt_theta.step()
-
-            # ── Step 2: Update Phi (task net) ──
-            self.opt_phi.zero_grad()
-
-            y_pred = self.task_net(x)
-            energy = self.energy_net(x, y_pred)
-            bce = self._compute_bce(y_pred, y)
-            loss_phi = (
-                self.config["lambda1"] * energy + self.config["lambda2"] * bce
-            ).mean()
-            loss_phi.backward()
-            torch.nn.utils.clip_grad_norm_(self.task_net.parameters(), 1.0)
-            self.opt_phi.step()
-
-            epoch_loss_theta += loss_theta.item()
-            epoch_loss_phi += loss_phi.item()
-            n_batches += 1
-            self.step += 1
-
-        if n_batches > 0:
-            avg_theta = epoch_loss_theta / n_batches
-            avg_phi = epoch_loss_phi / n_batches
-            lr_t = self.opt_theta.param_groups[0]["lr"]
-            lr_p = self.opt_phi.param_groups[0]["lr"]
-            print(
-                f"  Epoch {epoch + 1}: "
-                f"L_theta = {avg_theta:.4f}, "
-                f"L_phi = {avg_phi:.4f}, "
-                f"lr_task = {lr_p:.6f}, lr_energy = {lr_t:.6f}"
-            )
-            return avg_theta, avg_phi
-        return 0.0, 0.0
-
     def train(self):
         for epoch in range(self.config["epochs"]):
             self.train_one_epoch(epoch)
-
-    def _energy_loss(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        with torch.no_grad():
-            y_neg = (self.task_net(x) >= 0.5).float()
-
-        e_true = self.energy_net(x, y.float())
-        e_neg = self.energy_net(x, y_neg)
-
-        margin = (y_neg != y.float()).float().mean(dim=-1)
-        return F.relu(margin - e_neg + e_true).mean()
-
-    def _compute_diagnostics(self) -> dict:
-        C = self.corrector.critical_set
-        if len(C) == 0:
-            return {
-                "frac_inverted": 0.0,
-                "mean_delta_on_C": 0.0,
-                "mean_task_error_on_C": 0.0,
-            }
-
-        deltas = torch.stack([s["delta"] for s in C])
-        errors = torch.stack([s["task_error"] for s in C])
-
-        total = len(self.train_loader.dataset) if hasattr(self.train_loader, "dataset") else len(C)
-
-        return {
-            "frac_inverted": len(C) / max(total, 1),
-            "mean_delta_on_C": deltas.mean().item(),
-            "mean_task_error_on_C": errors.mean().item(),
-        }

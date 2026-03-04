@@ -39,7 +39,6 @@ DEFAULT_CONFIG = {
     "lambda2": 1.0,
     "beta": 0.1,
     "alpha": 1.0,
-    "correction_interval": 25,
     "task_error_metric": "f1",
     "correct_global_only": False,
     "batch_size": 32,
@@ -122,7 +121,6 @@ def main():
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--beta", type=float, default=None)
     parser.add_argument("--alpha", type=float, default=None)
-    parser.add_argument("--correction-interval", type=int, default=None)
     parser.add_argument("--metric", type=str, default=None,
                         choices=["hamming", "f1", "structural"])
     parser.add_argument("--global-only", action="store_true")
@@ -132,8 +130,6 @@ def main():
     parser.add_argument("--hidden-dim", type=int, default=None)
     parser.add_argument("--energy-hidden", type=int, default=None)
     parser.add_argument("--min-margin", type=float, default=None)
-    parser.add_argument("--no-correction-interval", default=True,
-                        help="Compute corrective loss inline per batch (no periodic diagnosis)")
     parser.add_argument("--log-dir", type=str, default="logs",
                         help="Directory for log files")
     args = parser.parse_args()
@@ -145,8 +141,6 @@ def main():
         config["beta"] = args.beta
     if args.alpha is not None:
         config["alpha"] = args.alpha
-    if args.correction_interval is not None:
-        config["correction_interval"] = args.correction_interval
     if args.metric is not None:
         config["task_error_metric"] = args.metric
     if args.global_only:
@@ -163,8 +157,6 @@ def main():
         config["energy_hidden"] = args.energy_hidden
     if args.min_margin is not None:
         config["min_margin"] = args.min_margin
-    if args.no_correction_interval:
-        config["no_correction_interval"] = True
     # ── Logging setup ──
     os.makedirs(args.log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -212,6 +204,7 @@ def main():
         train_loader, val_loader, test_loader, input_dim, num_labels, pos_weight = LOADERS[
             args.dataset](data_dir, config["batch_size"])
     else:
+        exit('Data is not configured correctly.')
         input_dim, num_labels = 50, 10
         train_ds = make_synthetic_data(500, input_dim, num_labels, seed=42)
         val_ds = make_synthetic_data(100, input_dim, num_labels, seed=123)
@@ -284,7 +277,6 @@ def main():
             "test_f1": test_f1,
             "loss_theta": loss_theta,
             "loss_phi": loss_phi,
-            "critical_set_size": len(corrector.critical_set),
             "epoch_time_s": round(epoch_time, 2),
             "best": is_best,
         })
