@@ -1,0 +1,19 @@
+{
+  "model_name": "bert-base-uncased",
+  "adapter_config": "pfeiffer",
+  "max_seq_len": 512,
+  "dropout": 0.1,
+  "lr": 0.0001,
+  "weight_decay": 0.01,
+  "batch_size": 16,
+  "epochs": 20,
+  "patience": 5,
+  "grad_norm": 1.0,
+  "warmup_ratio": 0.1,
+  "num_workers": 0,
+  "log_every": 10,
+  "data_dir": "data/aapd",
+  "device": "mps",
+  "cuda": 0,
+  "log_dir": "logs/bert_adapter_aapd"
+}
