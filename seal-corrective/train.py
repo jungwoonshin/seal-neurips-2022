@@ -38,13 +38,9 @@ DEFAULT_CONFIG = {
     "lambda1": 0.01,
     "lambda2": 1.0,
     "beta": 0.1,
-    "alpha": 1.0,
-    "task_error_metric": "f1",
-    "correct_global_only": False,
     "batch_size": 32,
     "hidden_dim": 512,
     "energy_hidden": 512,
-    "min_margin": 0.1,
 }
 
 
@@ -120,16 +116,11 @@ def main():
     parser.add_argument("--data-dir", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--beta", type=float, default=None)
-    parser.add_argument("--alpha", type=float, default=None)
-    parser.add_argument("--metric", type=str, default=None,
-                        choices=["hamming", "f1", "structural"])
-    parser.add_argument("--global-only", action="store_true")
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--lr-energy", type=float, default=None)
     parser.add_argument("--lr-task", type=float, default=None)
     parser.add_argument("--hidden-dim", type=int, default=None)
     parser.add_argument("--energy-hidden", type=int, default=None)
-    parser.add_argument("--min-margin", type=float, default=None)
     parser.add_argument("--log-dir", type=str, default="logs",
                         help="Directory for log files")
     args = parser.parse_args()
@@ -139,12 +130,6 @@ def main():
         config["epochs"] = args.epochs
     if args.beta is not None:
         config["beta"] = args.beta
-    if args.alpha is not None:
-        config["alpha"] = args.alpha
-    if args.metric is not None:
-        config["task_error_metric"] = args.metric
-    if args.global_only:
-        config["correct_global_only"] = True
     if args.batch_size is not None:
         config["batch_size"] = args.batch_size
     if args.lr_energy is not None:
@@ -155,8 +140,6 @@ def main():
         config["hidden_dim"] = args.hidden_dim
     if args.energy_hidden is not None:
         config["energy_hidden"] = args.energy_hidden
-    if args.min_margin is not None:
-        config["min_margin"] = args.min_margin
     # ── Logging setup ──
     os.makedirs(args.log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -225,12 +208,7 @@ def main():
     ).to(device)
 
     # ── Corrector ──
-    corrector = EnergyCorrector(
-        alpha=config["alpha"],
-        task_error_metric=config["task_error_metric"],
-        correct_global_only=config["correct_global_only"],
-        min_margin=config["min_margin"],
-    )
+    corrector = EnergyCorrector()
 
     # ── Train ──
     trainer = SEALCorrectiveTrainer(
