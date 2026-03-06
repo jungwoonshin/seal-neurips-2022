@@ -90,6 +90,8 @@ class SEALCorrectiveTrainer:
         epoch_loss_theta = 0.0
         epoch_loss_phi = 0.0
         epoch_n_critical = 0
+        epoch_descent_sat_sum = 0.0
+        epoch_descent_sat_count = 0
         n_batches = 0
 
         for x, y in self.train_loader:
@@ -97,7 +99,7 @@ class SEALCorrectiveTrainer:
 
             # ── Step 1: Update Theta (energy net) ──
             self.opt_theta.zero_grad()
-            loss_correct, n_crit = self.corrector.batch_corrective_loss(
+            loss_correct, n_crit, diag = self.corrector.batch_corrective_loss(
                 self.energy_net, self.task_net, x, y)
             loss_theta = self.config["beta"] * loss_correct
             loss_theta.backward()
@@ -113,8 +115,14 @@ class SEALCorrectiveTrainer:
                 self.config["lambda1"] * energy + self.config["lambda2"] * bce
             ).mean()
             loss_phi.backward()
+
             torch.nn.utils.clip_grad_norm_(self.task_net.parameters(), 1.0)
             self.opt_phi.step()
+
+            # Track diagnostics
+            if "descent_sat" in diag:
+                epoch_descent_sat_sum += diag["descent_sat"]
+                epoch_descent_sat_count += 1
 
             epoch_loss_theta += loss_theta.item()
             epoch_loss_phi += loss_phi.item()
@@ -128,13 +136,17 @@ class SEALCorrectiveTrainer:
             lr_t = self.opt_theta.param_groups[0]["lr"]
             lr_p = self.opt_phi.param_groups[0]["lr"]
             total = len(self.train_loader.dataset) if hasattr(self.train_loader, "dataset") else n_batches
-            print(
+            msg = (
                 f"  Epoch {epoch + 1}: "
                 f"L_theta = {avg_theta:.4f}, "
                 f"L_phi = {avg_phi:.4f}, "
                 f"n_critical = {epoch_n_critical}/{total}, "
                 f"lr_task = {lr_p:.6f}, lr_energy = {lr_t:.6f}"
             )
+            if epoch_descent_sat_count > 0:
+                avg_descent_sat = epoch_descent_sat_sum / epoch_descent_sat_count
+                msg += f", descent_sat = {avg_descent_sat:.3f}"
+            print(msg)
             return avg_theta, avg_phi
         return 0.0, 0.0
 

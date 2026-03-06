@@ -35,6 +35,12 @@ BASE_CONFIG = {
     "correct_global_only": False,
     "batch_size": 32,
     "min_margin": 0.1,
+    "loss_type": "hinge",
+    "gamma": 1.0,
+    "eta": 0.0,
+    "kappa": 0.0,
+    "beta2": 0.0,
+    "mu": 0.01,
 }
 
 DATASETS = {
@@ -85,6 +91,12 @@ def run_trial(hidden_dim, energy_hidden, lr_energy, lr_task, epochs,
         task_error_metric=config["task_error_metric"],
         correct_global_only=config["correct_global_only"],
         min_margin=config["min_margin"],
+        loss_type=config["loss_type"],
+        gamma=config["gamma"],
+        eta=config["eta"],
+        kappa=config["kappa"],
+        beta2=config["beta2"],
+        mu=config["mu"],
     )
 
     trainer = SEALCorrectiveTrainer(

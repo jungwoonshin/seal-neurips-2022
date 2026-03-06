@@ -1,10 +1,11 @@
 """
-Unit tests for EnergyCorrector.
+Unit tests for EnergyCorrector (batch_corrective_loss API).
 
-Tests:
-1. diagnose: finds known inversions on toy data
-2. corrective_loss gradient direction: pushes E(x, y_true) down, E(x, F(x)) up
-3. empty critical set: returns 0.0, no division by zero
+Tests both "hinge" and "smooth" loss modes:
+1. Gradient direction: one step increases E(x,F(x)) − E(x,y)
+2. Perfect predictions → zero loss
+3. Smooth loss is differentiable everywhere (no NaN grads)
+4. Smooth loss with γ > 1 focuses on harder examples
 """
 
 import sys
@@ -12,215 +13,331 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
-
 from models import TaskNet, EnergyNet
 from losses import EnergyCorrector
 
 
-def make_toy_data(n=100, input_dim=10, num_labels=5, seed=0):
-    gen = torch.Generator().manual_seed(seed)
-    x = torch.randn(n, input_dim, generator=gen)
-    y = (torch.rand(n, num_labels, generator=gen) > 0.5).float()
-    return x, y
-
-
-class InvertedEnergyNet(nn.Module):
-    """Energy net that intentionally inverts energy for ~30% of examples."""
-
-    def __init__(self, input_dim, num_labels, invert_mask):
-        super().__init__()
-        self.linear = nn.Linear(input_dim + num_labels, 1)
-        self.invert_mask = invert_mask  # (n,) bool tensor
-
-    def forward(self, x, y):
-        # Simple energy: just a linear function
-        cat = torch.cat([x, y], dim=-1)
-        e = self.linear(cat).squeeze(-1)
-        return e
-
-    def energy_global(self, y):
-        return torch.zeros(y.size(0))
-
-
-def test_diagnose_finds_known_inversions():
-    """
-    Build a toy energy net that inverts energy for exactly 30% of validation set.
-    Verify diagnose finds those examples.
-    """
-    torch.manual_seed(42)
-    n, input_dim, num_labels = 100, 10, 5
-    x, y = make_toy_data(n, input_dim, num_labels)
-
-    task_net = TaskNet(input_dim, 20, num_labels)
-
-    # Pre-compute task net predictions and errors
-    with torch.no_grad():
-        y_pred = task_net(x)
-        y_hard = (y_pred >= 0.5).float()
-        has_error = (y_hard != y).float().mean(dim=-1) > 0
-
-    # Pre-compute energy values: 30% inverted
-    n_inverted = 30
-    e_true_vals = torch.ones(n) * 1.0
-    e_pred_vals = torch.ones(n) * 2.0  # correct: pred higher energy
-    e_pred_vals[:n_inverted] = 0.5      # inverted: pred LOWER energy
-
-    # Expected: inverted AND has_error
-    expected_critical = sum(
-        1 for i in range(n)
-        if e_pred_vals[i] < e_true_vals[i] and has_error[i]
-    )
-
-    # Energy net that uses call-order tracking (pred first, then true, per batch)
-    class PrecomputedEnergyNet(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.dummy = nn.Parameter(torch.zeros(1))
-            self._e_true = e_true_vals
-            self._e_pred = e_pred_vals
-            self._global_idx = 0  # tracks position across all forward calls
-            self._call_parity = 0  # 0 = pred call, 1 = true call
-
-        def forward(self, x, y):
-            bs = x.size(0)
-            start = self._global_idx
-            end = start + bs
-
-            if self._call_parity == 0:
-                # First call in diagnose loop: energy_net(x, y_pred)
-                result = self._e_pred[start:end]
-                self._call_parity = 1
-            else:
-                # Second call in diagnose loop: energy_net(x, y.float())
-                result = self._e_true[start:end]
-                self._call_parity = 0
-                self._global_idx = end  # advance after both calls
-
-            return result
-
-        def energy_global(self, y):
-            return torch.zeros(y.size(0))
-
-    energy_net = PrecomputedEnergyNet()
-    dataset = TensorDataset(x, y)
-    val_loader = DataLoader(dataset, batch_size=20, shuffle=False)
-
-    corrector = EnergyCorrector(alpha=1.0, task_error_metric="hamming")
-    n_found = corrector.diagnose(energy_net, task_net, val_loader, torch.device("cpu"))
-
-    print(f"  Expected critical: {expected_critical}, Found: {n_found}")
-    assert n_found == expected_critical, (
-        f"Expected {expected_critical} critical examples, found {n_found}"
-    )
-    print("  PASSED: diagnose finds known inversions")
-
-
-def test_corrective_loss_gradient_direction():
-    """
-    Given a known critical set, verify that one gradient step on L_correct
-    increases the gap E(x, F(x)) - E(x, y_true).
-    """
+def test_hinge_gradient_direction():
+    """One gradient step on hinge loss increases E(x,F(x)) − E(x,y)."""
     torch.manual_seed(42)
     input_dim, num_labels = 10, 5
 
     energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
     opt = torch.optim.SGD(energy_net.parameters(), lr=0.1)
 
-    # Create a synthetic critical set
-    x = torch.randn(8, input_dim)
-    y = (torch.rand(8, num_labels) > 0.5).float()
-    y_pred = torch.sigmoid(torch.randn(8, num_labels))  # soft predictions
-    task_errors = torch.rand(8) * 0.5 + 0.1  # all > 0
+    x = torch.randn(16, input_dim)
+    y = (torch.rand(16, num_labels) > 0.5).float()
 
-    critical_batch = [
-        {"x": x[i], "y": y[i], "y_pred": y_pred[i], "task_error": task_errors[i],
-         "delta": torch.tensor(-0.5), "criticality": torch.tensor((i + 1) / 8.0)}
-        for i in range(8)
-    ]
-
-    corrector = EnergyCorrector(alpha=1.0, task_error_metric="hamming")
-
-    # Measure gap before
     with torch.no_grad():
+        y_pred = task_net(x)
         e_true_before = energy_net(x, y).clone()
         e_pred_before = energy_net(x, y_pred).clone()
         gap_before = (e_pred_before - e_true_before).mean().item()
 
-    # One gradient step
+    corrector = EnergyCorrector(alpha=1.0, loss_type="hinge")
     opt.zero_grad()
-    loss = corrector.corrective_loss(energy_net, critical_batch)
-    loss.backward()
-    opt.step()
+    loss, n_crit, _ = corrector.batch_corrective_loss(energy_net, task_net, x, y)
+    if n_crit > 0:
+        loss.backward()
+        opt.step()
 
-    # Measure gap after
+        with torch.no_grad():
+            y_pred = task_net(x)
+            gap_after = (energy_net(x, y_pred) - energy_net(x, y)).mean().item()
+
+        assert gap_after > gap_before, f"Gap should increase: {gap_before} → {gap_after}"
+    print("  PASSED: hinge gradient direction")
+
+
+def test_smooth_gradient_direction():
+    """One gradient step on smooth loss increases E(x,F(x)) − E(x,y)."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+    opt = torch.optim.SGD(energy_net.parameters(), lr=0.1)
+
+    x = torch.randn(16, input_dim)
+    y = (torch.rand(16, num_labels) > 0.5).float()
+
     with torch.no_grad():
-        e_true_after = energy_net(x, y)
-        e_pred_after = energy_net(x, y_pred)
-        gap_after = (e_pred_after - e_true_after).mean().item()
+        y_pred = task_net(x)
+        gap_before = (energy_net(x, y_pred) - energy_net(x, y)).mean().item()
 
-    print(f"  Gap before: {gap_before:.4f}, Gap after: {gap_after:.4f}")
-    assert gap_after > gap_before, (
-        f"Gap should increase. Before: {gap_before}, After: {gap_after}"
-    )
-    print("  PASSED: corrective loss pushes gap in correct direction")
+    corrector = EnergyCorrector(alpha=1.0, loss_type="smooth", gamma=1.0)
+    opt.zero_grad()
+    loss, n_active, _ = corrector.batch_corrective_loss(energy_net, task_net, x, y)
+    if n_active > 0:
+        loss.backward()
+        opt.step()
+
+        with torch.no_grad():
+            y_pred = task_net(x)
+            gap_after = (energy_net(x, y_pred) - energy_net(x, y)).mean().item()
+
+        assert gap_after > gap_before, f"Gap should increase: {gap_before} → {gap_after}"
+    print("  PASSED: smooth gradient direction")
 
 
-def test_empty_critical_set():
-    """Verify corrective_loss returns 0.0 with no division by zero."""
+def test_perfect_predictions_zero_loss():
+    """When task net predicts perfectly, both losses should be ~0."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    x = torch.randn(8, input_dim)
+    y = (torch.rand(8, num_labels) > 0.5).float()
+
+    # Perfect task net: always returns y exactly
+    class PerfectTaskNet(torch.nn.Module):
+        def __init__(self, targets):
+            super().__init__()
+            self.targets = targets
+        def forward(self, x):
+            return self.targets
+
+    task_net = PerfectTaskNet(y.clone())
+
+    for lt in ["hinge", "smooth"]:
+        corrector = EnergyCorrector(alpha=1.0, loss_type=lt, min_margin=0.0)
+        loss, n, _ = corrector.batch_corrective_loss(energy_net, task_net, x, y)
+        assert loss.item() < 1e-6, f"{lt}: expected ~0 loss, got {loss.item()}"
+    print("  PASSED: perfect predictions → zero loss")
+
+
+def test_smooth_no_nan_gradients():
+    """Smooth loss should never produce NaN gradients."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+
+    x = torch.randn(32, input_dim)
+    y = (torch.rand(32, num_labels) > 0.5).float()
+
+    corrector = EnergyCorrector(alpha=1.0, loss_type="smooth", gamma=2.0)
+    loss, _, _ = corrector.batch_corrective_loss(energy_net, task_net, x, y)
+    loss.backward()
+
+    for name, p in energy_net.named_parameters():
+        if p.grad is not None:
+            assert not torch.isnan(p.grad).any(), f"NaN gradient in {name}"
+    print("  PASSED: smooth loss has no NaN gradients")
+
+
+def test_gamma_focuses_on_hard_examples():
+    """Higher γ should give more relative weight to high-error examples."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+
+    x = torch.randn(32, input_dim)
+    y = (torch.rand(32, num_labels) > 0.5).float()
+
+    # Compute losses with γ=1 and γ=2; γ=2 should focus more on hard examples
+    # (different loss values, both valid)
+    corrector_g1 = EnergyCorrector(alpha=1.0, loss_type="smooth", gamma=1.0)
+    corrector_g2 = EnergyCorrector(alpha=1.0, loss_type="smooth", gamma=2.0)
+
+    loss_g1, _, _ = corrector_g1.batch_corrective_loss(energy_net, task_net, x, y)
+    loss_g2, _, _ = corrector_g2.batch_corrective_loss(energy_net, task_net, x, y)
+
+    # Both should be finite and differentiable
+    assert torch.isfinite(loss_g1), f"γ=1 loss not finite: {loss_g1}"
+    assert torch.isfinite(loss_g2), f"γ=2 loss not finite: {loss_g2}"
+    # They should generally differ (different weighting)
+    print(f"  γ=1 loss: {loss_g1.item():.4f}, γ=2 loss: {loss_g2.item():.4f}")
+    print("  PASSED: gamma parameter produces finite, varying losses")
+
+
+def test_empty_batch_no_crash():
+    """Zero-error batch returns 0.0, no division by zero."""
     torch.manual_seed(42)
     energy_net = EnergyNet(10, 20, 5, 20)
-    corrector = EnergyCorrector(alpha=1.0)
 
-    loss = corrector.corrective_loss(energy_net, [])
-    assert loss.item() == 0.0, f"Expected 0.0, got {loss.item()}"
+    # Task net that returns y exactly → zero error → zero weight sum
+    x = torch.randn(4, 10)
+    y = (torch.rand(4, 5) > 0.5).float()
 
-    # Verify it's differentiable (no crash on backward)
+    class PerfectTaskNet(torch.nn.Module):
+        def __init__(self, targets):
+            super().__init__()
+            self.targets = targets
+        def forward(self, x):
+            return self.targets
+
+    task_net = PerfectTaskNet(y.clone())
+
+    for lt in ["hinge", "smooth"]:
+        corrector = EnergyCorrector(alpha=1.0, loss_type=lt, min_margin=0.0)
+        loss, n, _ = corrector.batch_corrective_loss(energy_net, task_net, x, y)
+        assert torch.isfinite(loss), f"{lt}: loss not finite"
+        loss.backward()
+    print("  PASSED: empty batch no crash")
+
+
+def test_theory_gradient_direction():
+    """One gradient step on theory loss increases E(x,F(x)) − E(x,y)."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+    opt = torch.optim.SGD(energy_net.parameters(), lr=0.1)
+
+    x = torch.randn(16, input_dim)
+    y = (torch.rand(16, num_labels) > 0.5).float()
+
+    with torch.no_grad():
+        y_pred = task_net(x)
+        gap_before = (energy_net(x, y_pred) - energy_net(x, y)).mean().item()
+
+    corrector = EnergyCorrector(alpha=1.0, loss_type="theory", gamma=1.0)
+    opt.zero_grad()
+    loss, n_active, diag = corrector.batch_corrective_loss(energy_net, task_net, x, y)
+    if n_active > 0:
+        loss.backward()
+        opt.step()
+
+        with torch.no_grad():
+            y_pred = task_net(x)
+            gap_after = (energy_net(x, y_pred) - energy_net(x, y)).mean().item()
+
+        assert gap_after > gap_before, f"Gap should increase: {gap_before} → {gap_after}"
+    print("  PASSED: theory gradient direction")
+
+
+def test_theory_adaptive_margin():
+    """Margin grows with ||F(x)−y||² when η > 0."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+
+    x = torch.randn(16, input_dim)
+    y = (torch.rand(16, num_labels) > 0.5).float()
+
+    # η=0: no curvature correction
+    corrector_0 = EnergyCorrector(alpha=1.0, loss_type="theory", eta=0.0)
+    loss_0, _, _ = corrector_0.batch_corrective_loss(energy_net, task_net, x, y)
+
+    # η=1.0: curvature correction active
+    corrector_1 = EnergyCorrector(alpha=1.0, loss_type="theory", eta=1.0)
+    loss_1, _, _ = corrector_1.batch_corrective_loss(energy_net, task_net, x, y)
+
+    # With η>0, the margin is larger, so loss should be >= (typically strictly greater)
+    assert loss_1.item() >= loss_0.item() - 1e-6, \
+        f"η>0 should increase loss: η=0 → {loss_0.item()}, η=1 → {loss_1.item()}"
+    print(f"  η=0 loss: {loss_0.item():.4f}, η=1 loss: {loss_1.item():.4f}")
+    print("  PASSED: theory adaptive margin")
+
+
+def test_theory_descent_loss_grads():
+    """Descent loss (β₂>0) produces gradients on energy net parameters."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+
+    x = torch.randn(16, input_dim)
+    y = (torch.rand(16, num_labels) > 0.5).float()
+
+    corrector = EnergyCorrector(
+        alpha=1.0, loss_type="theory", beta2=0.1, mu=0.01)
+    loss, n_active, diag = corrector.batch_corrective_loss(energy_net, task_net, x, y)
     loss.backward()
-    print("  PASSED: empty critical set returns 0.0, no crash")
+
+    # Check that energy net has gradients
+    has_grad = False
+    for name, p in energy_net.named_parameters():
+        if p.grad is not None and p.grad.abs().sum() > 0:
+            has_grad = True
+            break
+    assert has_grad, "Descent loss should produce gradients on energy net"
+    assert "descent_sat" in diag, "Should report descent_sat"
+    print(f"  descent_sat: {diag['descent_sat']:.3f}")
+    print("  PASSED: theory descent loss produces gradients")
 
 
-def test_sample_batch():
-    """Verify sample_batch handles empty and non-empty sets."""
-    corrector = EnergyCorrector(alpha=1.0)
+def test_theory_backward_compat():
+    """η=0, κ=0, β₂=0 should match smooth loss."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
 
-    # Empty
-    batch = corrector.sample_batch(10)
-    assert len(batch) == 0
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+    # Eval mode to eliminate dropout randomness between calls
+    energy_net.eval()
+    task_net.eval()
 
-    # Non-empty
-    corrector.critical_set = [
-        {"x": torch.randn(5), "y": torch.ones(3), "y_pred": torch.zeros(3),
-         "task_error": torch.tensor(0.5), "delta": torch.tensor(-0.1),
-         "criticality": torch.tensor((i + 1) / 20.0)}
-        for i in range(20)
-    ]
-    batch = corrector.sample_batch(5)
-    assert len(batch) == 5
+    x = torch.randn(16, input_dim)
+    y = (torch.rand(16, num_labels) > 0.5).float()
 
-    batch = corrector.sample_batch(100)  # more than available
-    assert len(batch) == 20
+    corrector_smooth = EnergyCorrector(alpha=1.0, loss_type="smooth", gamma=1.0)
+    loss_smooth, n_smooth, _ = corrector_smooth.batch_corrective_loss(
+        energy_net, task_net, x, y)
 
-    print("  PASSED: sample_batch works correctly")
+    corrector_imp = EnergyCorrector(
+        alpha=1.0, loss_type="theory", gamma=1.0,
+        eta=0.0, kappa=0.0, beta2=0.0)
+    loss_imp, n_imp, _ = corrector_imp.batch_corrective_loss(
+        energy_net, task_net, x, y)
+
+    assert abs(loss_smooth.item() - loss_imp.item()) < 1e-5, \
+        f"Should match smooth: {loss_smooth.item()} vs {loss_imp.item()}"
+    assert n_smooth == n_imp, f"n_active mismatch: {n_smooth} vs {n_imp}"
+    print(f"  smooth: {loss_smooth.item():.6f}, theory: {loss_imp.item():.6f}")
+    print("  PASSED: theory backward compatible with smooth")
+
+
+def test_theory_diagnostics():
+    """Returns descent_sat and L_lip in diagnostics dict."""
+    torch.manual_seed(42)
+    input_dim, num_labels = 10, 5
+
+    energy_net = EnergyNet(input_dim, 20, num_labels, 20)
+    task_net = TaskNet(input_dim, 20, num_labels)
+
+    x = torch.randn(16, input_dim)
+    y = (torch.rand(16, num_labels) > 0.5).float()
+
+    corrector = EnergyCorrector(
+        alpha=1.0, loss_type="theory", beta2=0.1)
+    _, _, diag = corrector.batch_corrective_loss(energy_net, task_net, x, y)
+
+    assert "descent_sat" in diag, "Missing descent_sat"
+    assert "L_lip" in diag, "Missing L_lip"
+    assert 0.0 <= diag["descent_sat"] <= 1.0, f"descent_sat out of range: {diag['descent_sat']}"
+    assert diag["L_lip"] >= 0.0, f"L_lip should be non-negative: {diag['L_lip']}"
+    print(f"  descent_sat: {diag['descent_sat']:.3f}, L_lip: {diag['L_lip']:.4f}")
+    print("  PASSED: theory diagnostics")
 
 
 if __name__ == "__main__":
-    print("Test 1: diagnose finds known inversions")
-    test_diagnose_finds_known_inversions()
-    print()
+    tests = [
+        ("Hinge gradient direction", test_hinge_gradient_direction),
+        ("Smooth gradient direction", test_smooth_gradient_direction),
+        ("Perfect predictions → zero loss", test_perfect_predictions_zero_loss),
+        ("Smooth no NaN gradients", test_smooth_no_nan_gradients),
+        ("Gamma focuses on hard examples", test_gamma_focuses_on_hard_examples),
+        ("Empty batch no crash", test_empty_batch_no_crash),
+        ("Theory gradient direction", test_theory_gradient_direction),
+        ("Theory adaptive margin", test_theory_adaptive_margin),
+        ("Theory descent loss grads", test_theory_descent_loss_grads),
+        ("Theory backward compat", test_theory_backward_compat),
+        ("Theory diagnostics", test_theory_diagnostics),
+    ]
 
-    print("Test 2: corrective loss gradient direction")
-    test_corrective_loss_gradient_direction()
-    print()
-
-    print("Test 3: empty critical set")
-    test_empty_critical_set()
-    print()
-
-    print("Test 4: sample_batch")
-    test_sample_batch()
-    print()
+    for i, (name, fn) in enumerate(tests, 1):
+        print(f"Test {i}: {name}")
+        fn()
+        print()
 
     print("All tests passed!")

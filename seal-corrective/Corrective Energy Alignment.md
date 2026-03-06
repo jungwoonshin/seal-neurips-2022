@@ -25,23 +25,15 @@ For each mini-batch (x, y), the procedure alternates between two steps.
 
 ### Step 1: Update θ (energy net), φ frozen
 
-The energy net is trained via a **corrective loss** targeting "critical" examples where the energy surface is misaligned with the task net's errors.
+The energy net is trained via a **corrective loss** targeting examples where the energy surface is misaligned with the task net's errors. Two loss formulations are supported: a hinge loss (original) and a smooth probabilistic loss.
 
-**Critical set definition:**
-
-```
-C = { (x, y) | δ(x) < max(α · ℓ(F(x), y), min_margin) AND ℓ(F(x), y) > 0 }
-```
-
-where δ(x) = E_θ(x, F(x)) − E_θ(x, y) is the energy gap, and ℓ is the per-example task error.
-
-**Task error ℓ(F(x), y)** is computed by `_compute_error` (corrective.py:214–233). By default (with `task_error_metric="f1"`):
+**Task error ℓ(F(x), y)** is computed by `_compute_error` (corrective.py:136–155). By default (with `task_error_metric="f1"`):
 
 ```
 ℓ(F(x), y) = 1 − soft_F1(F(x), y)
 ```
 
-where soft F1 (corrective.py:240–246) is:
+where soft F1 (corrective.py:162–168) is:
 
 ```
 soft_F1 = 2 · (F(x) · y) / (sum(F(x)) + sum(y) + ε)
@@ -54,20 +46,7 @@ This uses soft predictions directly (no thresholding), so it is differentiable. 
 
 The task error ℓ plays the same role as Δ(ỹ, y) in the SEAL margin loss — it measures how wrong the prediction is — but it is computed from the task net's actual output rather than from an adversarially chosen ỹ.
 
-A sample is critical when the task net is making an error **and** the energy net fails to assign sufficiently lower energy to the ground truth relative to the prediction.
-
-**Corrective loss:**
-
-```
-L_correct(θ) = (1/|C|) Σ_{(x,y)∈C} [ max(α·ℓ(F(x),y), min_margin) + E_θ(x, y) − E_θ(x, F(x)) ]₊
-```
-
-The sum is over the critical set C and normalized by |C|, not the full batch. This hinge loss pushes ground-truth energy below prediction energy by a margin proportional to the task error. The total energy loss is L_θ = β · L_correct.
-
-**Two operational modes:**
-
-- **Periodic mode:** Every `correction_interval` steps, sweep the full training set to identify C, rank examples by |δ| (inversion depth), and sample with criticality-weighted sampling.
-- **Inline mode** (`-no-correction-interval`): Compute the corrective loss directly on each batch — lighter-weight and always up-to-date.
+The total energy loss is L_θ = β · L_correct (or L_smooth).
 
 ### Step 2: Update φ (task net), θ frozen
 
@@ -77,18 +56,89 @@ L_φ = λ₁ · E_θ(x, F_φ(x)) + λ₂ · BCE_weighted(F_φ(x), y*)
 
 The energy term (λ₁ = 0.01) transfers label-structure knowledge from the energy net. The weighted BCE term (λ₂ = 1.0) provides standard per-label supervision with pos_weight = (1 − freq) / freq, clamped at 50.
 
-## 4. Key Design Choices
+## 4. Loss Formulations
+
+The system supports two corrective loss formulations, selected via the `loss_type` parameter.
+
+### 4a. Hinge Loss (`loss_type="hinge"`, original)
+
+**Critical set definition:**
+
+```
+C = { (x, y) | δ(x) < max(α · ℓ(F(x), y), min_margin) AND ℓ(F(x), y) > 0 }
+```
+
+where δ(x) = E_θ(x, F(x)) − E_θ(x, y) is the energy gap.
+
+A sample is critical when the task net is making an error **and** the energy net fails to assign sufficiently lower energy to the ground truth relative to the prediction.
+
+**Corrective hinge loss:**
+
+```
+L_correct(θ) = (1/|C|) Σ_{(x,y)∈C} [ max(α·ℓ(F(x),y), min_margin) + E_θ(x, y) − E_θ(x, F(x)) ]₊
+```
+
+The sum is over the critical set C and normalized by |C|, not the full batch. The hinge pushes ground-truth energy below prediction energy by a margin proportional to the task error.
+
+**Properties:**
+- Hard binary filtering: examples are either in C or out.
+- The hinge `[·]₊` gives zero loss when the margin is satisfied, linear penalty when violated.
+- Requires `min_margin` hyperparameter to prevent margin collapse when task error is small.
+
+### 4b. Smooth Loss (`loss_type="smooth"`)
+
+Derived from a probabilistic interpretation: maximize the log-probability that the energy net correctly ranks ground truth below the prediction, weighted by task error severity.
+
+**Smooth corrective loss:**
+
+```
+L_smooth(θ) = (1/Σw) Σ_{(x,y)∈B} w(x) · log(1 + exp(α·ℓ + E_θ(x,y) − E_θ(x,F(x))))
+```
+
+where:
+- **w(x) = ℓ(x)^γ** — soft task-error weighting. γ=1 gives linear weighting; γ>1 provides focal-loss-like focus on hard examples.
+- The **log-sigmoid penalty** `log(1 + exp(v))` is implemented as `F.softplus(v)` for numerical stability.
+- **No hard critical set filtering** — every example in the batch contributes, weighted by its task error.
+- **No `min_margin` needed** — soft weighting naturally down-weights near-zero-error examples.
+- **Normalized by Σw** instead of |C|, keeping the loss scale invariant to error distribution.
+
+**Derivation:** Model the probability that the energy ranking is correct as P(y ≻ F(x) | x) = σ(δ(x) − α·ℓ), where σ is the sigmoid. Minimize the negative log-likelihood: −log σ(−v) = log(1 + exp(v)). This is the softplus with temperature 1, giving the loss a principled probabilistic interpretation.
+
+**Gradient analysis for a single example:**
+
+```
+∂L/∂θ = w(x) · σ(α·ℓ + E(x,y) − E(x,F(x))) · [∂E(x,y)/∂θ − ∂E(x,F(x))/∂θ]
+```
+
+The sigmoid factor σ(·) acts as a **soft gate**: when the margin is well satisfied (large negative argument), σ → 0 and the gradient vanishes. When the margin is badly violated (large positive argument), σ → 1 and you get the full gradient. Compare with the hinge, where this gate is binary.
+
+**Properties:**
+- Smooth gradients everywhere — no discontinuities at the margin boundary.
+- Examples near the boundary contribute small but nonzero gradients, providing a continuous signal.
+- One fewer hyperparameter than hinge (no `min_margin`), one additional (γ).
+
+### Comparison of Loss Formulations
+
+| Component | Hinge | Smooth |
+| --- | --- | --- |
+| Penalty function | `[v]₊` (ReLU) | `log(1 + exp(v))` (softplus) |
+| Example filtering | Hard critical set C | Soft weighting w(x) = ℓ^γ |
+| Margin | `max(α·ℓ, min_margin)` | `α·ℓ` (linear, no floor) |
+| Normalization | `1/\|C\|` | `1/Σw` |
+| Gradient at boundary | Discontinuous (binary gate) | Smooth (sigmoid gate) |
+| Hyperparameters | α, min_margin | α, γ |
+
+## 5. Key Design Choices
 
 | Component | Choice | Rationale |
 | --- | --- | --- |
 | Gradient isolation | Separate AdamW optimizers for θ and φ | Prevents entangled updates |
 | y_pred detached in Step 1 | `torch.no_grad()` on task net | Energy net learns from current predictions without backprop through them |
-| Adaptive margin | max(α·error, min_margin) | Larger errors demand larger energy gaps; min_margin prevents collapse |
-| Criticality-weighted sampling | Rank by \|δ\| | Deepest energy inversions are visited most frequently |
+| Adaptive margin | Proportional to task error ℓ | Larger errors demand larger energy gaps |
 | LR scheduling | ReduceLROnPlateau on val F1 | Patience=10, factor=0.5 for both networks |
 | Checkpointing | Restore best val F1 model | Avoids overfitting in later epochs |
 
-## 5. Comparison with SEAL Paper's Margin Loss
+## 6. Comparison with SEAL Paper's Margin Loss
 
 The original SEAL (NeurIPS 2022) learns an energy model directly on the entire dataset using the classic SSVM loss:
 
@@ -96,24 +146,18 @@ The original SEAL (NeurIPS 2022) learns an energy model directly on the entire d
 L_E_margin = Σ_{x,y} max_{ỹ} [ Δ(ỹ, y) − E_θ(x, ỹ) + E_θ(x, y) ]₊
 ```
 
-The corrective loss:
-
-```
-L_correct = (1/|C|) Σ_{(x,y)∈C} [ max(α·ℓ, min_margin) + E_θ(x, y) − E_θ(x, F(x)) ]₊
-```
-
-| Aspect | SEAL Paper (L_E_margin) | Corrective Loss (L_correct) |
+| Aspect | SEAL Paper (L_E_margin) | Corrective Loss |
 | --- | --- | --- |
 | **Negative label** | max_ỹ — adversarial search over all ỹ | F(x) — the task net's current prediction |
-| **Margin term** | Δ(ỹ, y) — fixed task loss (e.g., Hamming distance) | max(α·ℓ, min_margin) — scaled task error with a floor |
-| **Summation** | Over all (x, y) | Only over critical set C (filtered examples) |
-| **Normalization** | Sum (no averaging) | Mean (divided by |C|) |
+| **Margin term** | Δ(ỹ, y) — fixed task loss | α·ℓ (scaled task error, optionally with floor) |
+| **Summation** | Over all (x, y) | Critical set (hinge) or weighted full batch (smooth) |
+| **Normalization** | Sum (no averaging) | Mean over critical set or weight-normalized |
 
-**Core conceptual shift:** SEAL's margin loss performs adversarial search to find the worst-case violator ỹ across the entire label space for every training example, shaping a globally correct energy surface. The corrective loss eliminates this search entirely — it uses the task net's own prediction F(x), applies only to the critical set C where the energy surface is actually misaligned, and normalizes by the size of that set.
+**Core conceptual shift:** SEAL's margin loss performs adversarial search to find the worst-case violator ỹ across the entire label space for every training example, shaping a globally correct energy surface. The corrective loss eliminates this search entirely — it uses the task net's own prediction F(x), and normalizes by the effective set size.
 
 ### Eliminating Explicit Negative Sampling
 
-SEAL's margin loss requires an explicit procedure to produce ỹ — whether GBI (gradient-based inference), random corruption, or InfNet — searching the combinatorial label space for hard negatives. The corrective loss requires no such step. F(x) is not a "negative sample" found by search; it is simply the task net's forward pass, which already happens as part of training. The loss compares two energies that are already available: E(x, y) from the batch and E(x, F(x)) from the task net's output.
+SEAL's margin loss requires an explicit procedure to produce ỹ — whether GBI (gradient-based inference), random corruption, or InfNet — searching the combinatorial label space for hard negatives. The corrective loss requires no such step. F(x) is not a "negative sample" found by search; it is simply the task net's forward pass, which already happens as part of training.
 
 This provides three benefits:
 
@@ -123,14 +167,12 @@ This provides three benefits:
 
 ### Main Advantages over Original SEAL
 
-- **Targeted updates:** Only corrects on the critical set rather than pushing the energy surface everywhere, focusing on truly problematic regions.
+- **Targeted updates:** Corrects only where the energy surface is misaligned (via critical set or soft weighting), rather than pushing the energy surface everywhere.
 - **Explicit separation of prediction and structure:** The task net handles prediction via BCE; the energy net handles structural consistency. Each can be debugged and ablated independently.
-- **Avoids over-fitting the energy:** No corrective gradient when the task is correct, even if the energy surface has minor imperfections.
+- **Avoids over-fitting the energy:** No corrective gradient when the task is correct (hinge excludes them; smooth down-weights them to near zero).
 - **Error-scaled margins:** The required energy gap is proportional to the task error, making correction proportionally aggressive where the task is most wrong.
-- **Criticality-weighted sampling (periodic mode):** The most inverted regions are visited more often, giving faster and more sample-efficient correction.
-- **Inline mode as a lighter alternative:** Always-up-to-date correction without diagnosis sweeps, easier to scale.
 
-## 6. Concrete Examples
+## 7. Concrete Examples
 
 Setup: 4 labels, ground truth y = [1, 1, 0, 0], task net predicts F(x) = [0.8, 0.3, 0.1, 0.2]. The task error is ℓ = 1 − soft_F1 = 0.353.
 
@@ -138,48 +180,40 @@ Setup: 4 labels, ground truth y = [1, 1, 0, 0], task net predicts F(x) = [0.8, 0
 
 E(x, y) = −2.0, E(x, F(x)) = −1.2. The gap δ = 0.8 exceeds the required margin of 0.353. The energy gradient naturally helps — no correction needed.
 
+- Hinge: violation = 0.353 + (−2.0) − (−1.2) = −0.447 → loss = 0 (not in C).
+- Smooth: softplus(−0.447) = 0.48, weighted by 0.353^γ → small contribution.
+
 ### Case B: Energy surface inverted (critical)
 
-E(x, y) = −1.0, E(x, F(x)) = −1.5. The energy net thinks the wrong prediction is better (lower energy). The energy gradient actively reinforces the mistake. Corrective hinge loss: [0.353 + (−1.0) − (−1.5)]₊ = 0.853, forcing the energy net to fix this inversion.
+E(x, y) = −1.0, E(x, F(x)) = −1.5. The energy net thinks the wrong prediction is better (lower energy). The energy gradient actively reinforces the mistake.
+
+- Hinge: [0.353 + (−1.0) − (−1.5)]₊ = 0.853 → strong correction.
+- Smooth: softplus(0.853) = 1.21, weighted by 0.353^γ → strong correction.
 
 ### Case C: Energy surface correct but margin too small (critical)
 
-E(x, y) = −1.5, E(x, F(x)) = −1.4. The ranking is technically correct, but the gap of 0.1 is too weak relative to the error of 0.353. The corrective loss widens the gap to provide a useful gradient signal.
+E(x, y) = −1.5, E(x, F(x)) = −1.4. The ranking is technically correct, but the gap of 0.1 is too weak relative to the error of 0.353.
+
+- Hinge: [0.353 + (−1.5) − (−1.4)]₊ = 0.253 → moderate correction.
+- Smooth: softplus(0.253) = 0.84, weighted by 0.353^γ → moderate correction.
 
 ### Case D: Task net correct (never critical)
 
-If F(x) ≈ y then ℓ ≈ 0 and the example is excluded regardless of the energy surface.
+If F(x) ≈ y then ℓ ≈ 0. Hinge excludes this example (ℓ > 0 fails). Smooth gives it near-zero weight (0^γ ≈ 0).
 
-| Case | Task wrong? | Energy ranking | Critical? | Effect |
+| Case | Task wrong? | Energy ranking | Hinge | Smooth |
 | --- | --- | --- | --- | --- |
-| A | Yes | Correct, large gap | No | Energy gradient naturally helps |
-| B | Yes | Inverted | **Yes** | Energy gradient hurts — corrective loss fixes it |
-| C | Yes | Correct, small gap | **Yes** | Energy gradient too weak — corrective loss widens gap |
-| D | No | Irrelevant | No | Task net already correct, skip |
-
-## 7. Role of the Hinge vs. the Error Metric
-
-Two distinct components serve different roles in the corrective loss:
-
-```
-L_correct = [ max(α · ℓ, min_margin)  +  E(x, y)  −  E(x, F(x)) ]₊
-              ^^^^^^^^^^^^^^^^^^^^^^^^                              ^^
-              margin (error metric)                               hinge
-```
-
-- **Error metric (Hamming or soft F1):** Answers "how wrong is the prediction?" — determines the required margin size.
-- **Hinge ([·]₊):** Answers "is the energy gap sufficient?" — if yes, loss is zero; if not, loss equals the violation amount.
-
-With **soft F1**, the ℓ > 0 condition is nearly always satisfied (sigmoid never outputs exactly 0 or 1), so the hinge alone performs the real filtering. With **Hamming error**, ℓ can be exactly zero for correct hard predictions, making the ℓ > 0 condition meaningful.
-
-The corrective loss targets the **mismatch** between task error magnitude and energy gap size. A moderately wrong prediction with a tiny energy gap is critical; a very wrong prediction with a large energy gap is not. It is not about absolute prediction badness but about whether the energy net is doing its job for that example.
+| A | Yes | Correct, large gap | Loss = 0 | Negligible (softplus decays) |
+| B | Yes | Inverted | Strong correction | Strong correction |
+| C | Yes | Correct, small gap | Moderate correction | Moderate correction |
+| D | No | Irrelevant | Excluded (ℓ = 0) | Weight ≈ 0 |
 
 ## 8. Intuition
 
 The system implements a **diagnose-then-correct loop:**
 
 1. The energy net should assign lower energy to ground truth than to wrong predictions.
-2. When this property is violated (the energy surface is inverted or has insufficient margin), the corrective loss surgically fixes those regions.
+2. When this property is violated (the energy surface is inverted or has insufficient margin), the corrective loss fixes those regions — either surgically (hinge) or smoothly (softplus).
 3. Once corrected, the energy surface provides a useful gradient signal to the task net, pushing predictions toward lower-energy (more compatible) label configurations.
 4. As the task net improves, different examples become critical, and the energy net adapts.
 
@@ -195,7 +229,9 @@ This creates a **virtuous cycle** where the energy net learns label-space struct
 | `lambda2` | 1.0 | Weight of BCE in task loss |
 | `beta` | 0.1 | Weight of corrective loss |
 | `alpha` | 1.0 | Margin scaling factor |
-| `min_margin` | 0.1 | Floor on hinge margin |
+| `min_margin` | 0.1 | Floor on hinge margin (hinge only) |
+| `loss_type` | "smooth" | Loss formulation: "hinge" or "smooth" |
+| `gamma` | 1.0 | Task-error weighting exponent (smooth only) |
 | `hidden_dim` | 768 | MLP width for both networks |
 | `energy_hidden` | 768 | Dimension of global label-mixing layer |
 
@@ -223,7 +259,8 @@ This creates a **virtuous cycle** where the energy net learns label-space struct
 | regression-s | 44.53 | 29.87 | 97.81 | 38.95 | 42.17 | 37.95 | — |
 | NCE ranking | 44.76 | 34.67 | 97.32 | 41.62 | 41.62 | **38.28** | 28.83 |
 | | | | | | | | |
-| **Ours (Corrective)** | 44.35 | **36.05** | **98.99** | 41.35 | **47.95** | 37.32 | **31.78** |
+| **Ours (Hinge)** | 44.35 | **36.05** | **98.99** | 41.35 | **47.95** | 37.32 | **31.78** |
+| **Ours (Smooth, γ=1)** | 44.08 | 35.51 | — | **43.22** | — | 37.58 | — |
 
 Bold indicates best result per dataset.
 
@@ -256,7 +293,7 @@ Baseline values from the original paper (Appendix D, Table 19), measured on Tita
 | SEAL-Ranking | 218.37 | 7.04 | 317.63 | 408.79 | 41.24 | 10.74 | 26.83 |
 | **Ours (Corrective)** | 1.93 | 0.13 | 3.63 | 5.05 | 0.81 | 0.19 | 0.80 |
 
-### Detailed Corrective SEAL Results
+### Detailed Results: Hinge Loss
 
 | Dataset | Val F1 | Test F1 | Best Epoch | Epochs | Total Time | sec/epoch |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -268,6 +305,19 @@ Baseline values from the original paper (Appendix D, Table 19), measured on Tita
 | Genbase | 0.9932 | 0.9899 | 18 | 70 | 13.2s | 0.19 |
 | SPO_fun | 0.3042 | 0.3178 | 22 | 70 | 55.9s | 0.80 |
 
+### Detailed Results: Smooth Loss (γ=1.0)
+
+| Dataset | Val F1 | Test F1 | Best Epoch | Epochs | Total Time |
+| --- | --- | --- | --- | --- | --- |
+| Bibtex | 0.4569 | 0.4408 | 42 | 300 | 780.1s |
+| CAL500 | 0.4191 | 0.4322 | 27 | 300 | 46.6s |
+| Delicious | 0.3601 | 0.3551 | 14 | 300 | 2354.4s |
+| Expr_fun | 0.3729 | 0.3758 | 38 | 300 | 412.8s |
+
 ### Configuration
 
-All runs use the default configuration: lr_energy = lr_task = 0.001, β = 0.1, α = 1.0, min_margin = 0.1, λ₁ = 0.01, λ₂ = 1.0, hidden_dim = energy_hidden = 768, batch_size = 32, epochs = 70 (eurlex_ev: 300), inline mode, AdamW (weight decay 1e-4), ReduceLROnPlateau (patience 10, factor 0.5).
+Shared: lr_energy = lr_task = 0.001, β = 0.1, α = 1.0, λ₁ = 0.01, λ₂ = 1.0, hidden_dim = energy_hidden = 768, batch_size = 32, AdamW (weight decay 1e-4), ReduceLROnPlateau (patience 10, factor 0.5).
+
+Hinge-specific: min_margin = 0.1, epochs = 70 (eurlex_ev: 300).
+
+Smooth-specific: γ = 1.0, epochs = 300. No min_margin.

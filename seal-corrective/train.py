@@ -42,9 +42,15 @@ DEFAULT_CONFIG = {
     "task_error_metric": "f1",
     "correct_global_only": False,
     "batch_size": 32,
-    "hidden_dim": 512,
-    "energy_hidden": 512,
+    "hidden_dim": 768,
+    "energy_hidden": 768,
     "min_margin": 0.1,
+    "loss_type": "smooth",
+    "gamma": 1.0,
+    "eta": 0.0,
+    "kappa": 0.0,
+    "beta2": 0.0,
+    "mu": 0.01,
 }
 
 
@@ -130,6 +136,19 @@ def main():
     parser.add_argument("--hidden-dim", type=int, default=None)
     parser.add_argument("--energy-hidden", type=int, default=None)
     parser.add_argument("--min-margin", type=float, default=None)
+    parser.add_argument("--loss-type", type=str, default=None,
+                        choices=["hinge", "smooth", "theory"],
+                        help="Corrective loss: 'hinge', 'smooth', or 'theory' (theory-driven)")
+    parser.add_argument("--gamma", type=float, default=None,
+                        help="Task-error weighting exponent for smooth loss (default: 1.0)")
+    parser.add_argument("--eta", type=float, default=None,
+                        help="Curvature correction scale (theory only)")
+    parser.add_argument("--kappa", type=float, default=None,
+                        help="Descent violation weighting exponent (theory only)")
+    parser.add_argument("--beta2", type=float, default=None,
+                        help="Descent auxiliary loss weight (theory only)")
+    parser.add_argument("--mu", type=float, default=None,
+                        help="Descent margin (theory only)")
     parser.add_argument("--log-dir", type=str, default="logs",
                         help="Directory for log files")
     args = parser.parse_args()
@@ -157,6 +176,18 @@ def main():
         config["energy_hidden"] = args.energy_hidden
     if args.min_margin is not None:
         config["min_margin"] = args.min_margin
+    if args.loss_type is not None:
+        config["loss_type"] = args.loss_type
+    if args.gamma is not None:
+        config["gamma"] = args.gamma
+    if args.eta is not None:
+        config["eta"] = args.eta
+    if args.kappa is not None:
+        config["kappa"] = args.kappa
+    if args.beta2 is not None:
+        config["beta2"] = args.beta2
+    if args.mu is not None:
+        config["mu"] = args.mu
     # ── Logging setup ──
     os.makedirs(args.log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -230,6 +261,12 @@ def main():
         task_error_metric=config["task_error_metric"],
         correct_global_only=config["correct_global_only"],
         min_margin=config["min_margin"],
+        loss_type=config["loss_type"],
+        gamma=config["gamma"],
+        eta=config["eta"],
+        kappa=config["kappa"],
+        beta2=config["beta2"],
+        mu=config["mu"],
     )
 
     # ── Train ──
